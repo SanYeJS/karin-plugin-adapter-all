@@ -34,6 +34,10 @@ jobs:
           # 设置 npm 注册表 URL
           registry-url: https://registry.npmjs.org
         if: ${{ steps.release.outputs.release_created }}
+      # 配置 GitHub Packages 认证（@icqqjs/icqq 发布在 GitHub Packages）
+      - name: 配置 GitHub Packages 认证
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GH_PAT }}" >> .npmrc
+        if: ${{ steps.release.outputs.release_created && secrets.GH_PAT != '' }}
       # 安装依赖
       - run: pnpm install --no-frozen-lockfile
         if: ${{ steps.release.outputs.release_created }}
@@ -65,6 +69,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # 配置 GitHub Packages 认证（@icqqjs/icqq 发布在 GitHub Packages）
+      - name: 配置 GitHub Packages 认证
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GH_PAT }}" >> .npmrc
+        if: ${{ secrets.GH_PAT != '' }}
       # 安装依赖
       - run: pnpm install --no-frozen-lockfile
       # 编译
