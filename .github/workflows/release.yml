@@ -37,10 +37,17 @@ jobs:
           # 设置 npm 注册表 URL
           registry-url: https://registry.npmjs.org
         if: ${{ steps.release.outputs.release_created }}
-      # 配置 GitHub Packages 认证（@icqqjs/icqq 发布在 GitHub Packages）
+      # 配置 GitHub Packages 认证 (@icqqjs/icqq 发布在 GitHub Packages, GH_PAT 未配置时回退 GITHUB_TOKEN)
       - name: 配置 GitHub Packages 认证
-        run: echo "//npm.pkg.github.com/:_authToken=${{ env.GH_PAT }}" >> .npmrc
-        if: ${{ steps.release.outputs.release_created && env.GH_PAT != '' }}
+        run: |
+          if [ -n "${{ env.GH_PAT }}" ]; then
+            echo "//npm.pkg.github.com/:_authToken=${{ env.GH_PAT }}" >> .npmrc
+            echo "::notice::使用 GH_PAT 认证 GitHub Packages"
+          else
+            echo "::warning::未配置 GH_PAT, 回退 GITHUB_TOKEN (@icqqjs/icqq 为可选依赖, 拉取失败不阻塞构建)"
+            echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
+          fi
+        if: ${{ steps.release.outputs.release_created }}
       # 安装依赖
       - run: pnpm install --no-frozen-lockfile
         if: ${{ steps.release.outputs.release_created }}
@@ -56,14 +63,17 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo
-            const content = '## 构建内容\n\n- 内置完整 Web 管理面板（`resources/web`，随 npm 包发布）\n- 多协议适配器：onebot11 / onebot12 / milky / kook / qqbot / icqq（icqq 为可选依赖）\n'
+            const branch = `https://github.com/${owner}/${repo}/tree/build`
+            const installCmd = `pnpm add github:${owner}/${repo}#build -w`
+            let section = `## 构建内容\n\n### 📦 发布分支的包\n- [build 分支](${branch})：dist + resources/web 构建产物\n- 安装命令：\`${installCmd}\`\n`
             if (process.env.RELEASE_TAG) {
+              section += `\n### 🏷️ 发行版\n- 版本：\`${process.env.RELEASE_TAG}\`\n- [查看 Release](https://github.com/${owner}/${repo}/releases/tag/${process.env.RELEASE_TAG})\n- [npm 包](https://www.npmjs.com/package/karin-plugin-adapter-all)\n`
               const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag: process.env.RELEASE_TAG })
-              await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, body: (release.body || '') + '\n' + content })
+              await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, body: (release.body || '') + '\n' + section })
             } else {
               const { data: prs } = await github.rest.pulls.list({ owner, repo, state: 'open', head: `${owner}:${process.env.PR_BRANCH}` })
               for (const pr of prs) {
-                await github.rest.pulls.update({ owner, repo, pull_number: pr.number, body: (pr.body || '') + '\n' + content })
+                await github.rest.pulls.update({ owner, repo, pull_number: pr.number, body: (pr.body || '') + '\n' + section })
               }
             }
         if: ${{ steps.release.outputs.release_created || steps.release.outputs.prs_created }}
@@ -79,6 +89,9 @@ jobs:
   sync-build:
     # 设置工作流程运行环境为 Ubuntu
     runs-on: ubuntu-latest
+    # 构建结果输出, 供 build-summary 判断
+    outputs:
+      build_success: ${{ steps.build.outputs.success }}
     # GitHub Packages 认证 token 先传到 job 级 env (secrets 不能在 if 条件中直接引用)
     env:
       GH_PAT: ${{ secrets.GH_PAT }}
@@ -95,14 +108,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # 配置 GitHub Packages 认证（@icqqjs/icqq 发布在 GitHub Packages）
+      # 配置 GitHub Packages 认证 (@icqqjs/icqq 发布在 GitHub Packages, GH_PAT 未配置时回退 GITHUB_TOKEN)
       - name: 配置 GitHub Packages 认证
-        run: echo "//npm.pkg.github.com/:_authToken=${{ env.GH_PAT }}" >> .npmrc
-        if: ${{ env.GH_PAT != '' }}
+        run: |
+          if [ -n "${{ env.GH_PAT }}" ]; then
+            echo "//npm.pkg.github.com/:_authToken=${{ env.GH_PAT }}" >> .npmrc
+            echo "::notice::使用 GH_PAT 认证 GitHub Packages"
+          else
+            echo "::warning::未配置 GH_PAT, 回退 GITHUB_TOKEN (@icqqjs/icqq 为可选依赖, 拉取失败不阻塞构建)"
+            echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
+          fi
       # 安装依赖
       - run: pnpm install --no-frozen-lockfile
       # 编译
-      - run: pnpm build
+      - id: build
+        run: |
+          pnpm build
+          echo "success=true" >> "$GITHUB_OUTPUT"
       # 同步编译产物到 build 分支
       - name: Sync build artifacts to build branch
         run: |
@@ -113,3 +135,37 @@ jobs:
           git add -f dist
           git commit -m "build: 同步编译产物" --allow-empty
           git push origin build --force
+  # 构建成功后, 在 Actions 运行页生成完整构建摘要 (Job Summary)
+  build-summary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [release-please, sync-build]
+    if: always() && needs.sync-build.outputs.build_success == 'true'
+    steps:
+      - name: 📊 生成完整构建摘要
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          {
+            echo "## ✅ 构建成功"
+            echo ""
+            echo "### 📦 发布分支的包"
+            echo "- [\`build\` 分支](https://github.com/${{ github.repository }}/tree/build)：构建产物（dist + resources/web）"
+            echo "- 安装命令：\`pnpm add github:${{ github.repository }}#build -w\`"
+            echo "- [npm 包](https://www.npmjs.com/package/karin-plugin-adapter-all)：\`karin-plugin-adapter-all\`"
+            echo ""
+            echo "### 🏷️ 发行版"
+            if [ -n "$RELEASE_TAG" ]; then
+              echo "- 版本：\`$RELEASE_TAG\`"
+              echo "- [查看 Release](https://github.com/${{ github.repository }}/releases/tag/$RELEASE_TAG)"
+            else
+              LATEST=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name 2>/dev/null || echo "")
+              if [ -n "$LATEST" ]; then
+                echo "- 最新 Release：\`$LATEST\`"
+                echo "- [查看 Release](https://github.com/${{ github.repository }}/releases/tag/$LATEST)"
+              else
+                echo "- 暂未发布 Release"
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

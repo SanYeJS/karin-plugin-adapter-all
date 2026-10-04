@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@icqqjs/icqq':
-        specifier: 1.12.3
-        version: 1.12.3
       '@karinjs/plugin-basic':
         specifier: ^1.4.14
         version: 1.4.14
@@ -32,6 +29,10 @@ importers:
       ws:
         specifier: npm:@karinjs/ws@1.0.4
         version: '@karinjs/ws@1.0.4'
+    optionalDependencies:
+      '@icqqjs/icqq':
+        specifier: 1.12.3
+        version: 1.12.3
     devDependencies:
       '@types/express':
         specifier: ^5.0.1

@@ -68,7 +68,6 @@
     "registry": "https://registry.npmjs.org"
   },
   "dependencies": {
-    "@icqqjs/icqq": "1.12.3",
     "@karinjs/plugin-basic": "^1.4.14",
     "@karinjs/plugin-shotium": "^0.3.6",
     "@saltify/milky-types": "^1.2.2",
@@ -76,5 +75,8 @@
     "@ys7zts/karin-plugin-nekostatus": "^1.4.13",
     "qrcode": "^1.5.4",
     "ws": "npm:@karinjs/ws@1.0.4"
+  },
+  "optionalDependencies": {
+    "@icqqjs/icqq": "1.12.3"
   }
 }
