@@ -11,9 +11,6 @@ jobs:
   release-please:
     # 设置工作流程运行环境为 Ubuntu
     runs-on: ubuntu-latest
-    # GitHub Packages 认证 token 先传到 job 级 env (secrets 不能在 if 条件中直接引用)
-    env:
-      GH_PAT: ${{ secrets.GH_PAT }}
     steps:
       # 使用 release-please-action@v3
       - uses: google-github-actions/release-please-action@v3
@@ -37,19 +34,11 @@ jobs:
           # 设置 npm 注册表 URL
           registry-url: https://registry.npmjs.org
         if: ${{ steps.release.outputs.release_created }}
-      # 配置 GitHub Packages 认证 (@icqqjs/icqq 发布在 GitHub Packages, GH_PAT 未配置时回退 GITHUB_TOKEN)
-      - name: 配置 GitHub Packages 认证
+      # 安装依赖 (剥离 icqq 可选项, 避免 CI 拉取 GitHub Packages 认证失败)
+      - name: 安装依赖 (跳过 GitHub Packages)
         run: |
-          if [ -n "${{ env.GH_PAT }}" ]; then
-            echo "//npm.pkg.github.com/:_authToken=${{ env.GH_PAT }}" >> .npmrc
-            echo "::notice::使用 GH_PAT 认证 GitHub Packages"
-          else
-            echo "::warning::未配置 GH_PAT, 回退 GITHUB_TOKEN (@icqqjs/icqq 为可选依赖, 拉取失败不阻塞构建)"
-            echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
-          fi
-        if: ${{ steps.release.outputs.release_created }}
-      # 安装依赖
-      - run: pnpm install --no-frozen-lockfile
+          node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.optionalDependencies['@icqqjs/icqq'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+          pnpm install --no-frozen-lockfile
         if: ${{ steps.release.outputs.release_created }}
       # 编译
       - run: pnpm build
@@ -77,6 +66,10 @@ jobs:
               }
             }
         if: ${{ steps.release.outputs.release_created || steps.release.outputs.prs_created }}
+      # 还原 icqq 可选依赖声明 (发布包保留 ICQQ 能力, 无需在 CI 下载)
+      - name: 还原 icqq 可选依赖
+        run: node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json','utf8'));p.optionalDependencies['@icqqjs/icqq']='1.12.3';fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+        if: ${{ steps.release.outputs.release_created }}
       # 删除开发依赖
       - run: npm pkg delete devDependencies
         if: ${{ steps.release.outputs.release_created }}
@@ -92,9 +85,6 @@ jobs:
     # 构建结果输出, 供 build-summary 判断
     outputs:
       build_success: ${{ steps.build.outputs.success }}
-    # GitHub Packages 认证 token 先传到 job 级 env (secrets 不能在 if 条件中直接引用)
-    env:
-      GH_PAT: ${{ secrets.GH_PAT }}
     steps:
       # 检出代码（保留完整历史）
       - uses: actions/checkout@v4
@@ -108,18 +98,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # 配置 GitHub Packages 认证 (@icqqjs/icqq 发布在 GitHub Packages, GH_PAT 未配置时回退 GITHUB_TOKEN)
-      - name: 配置 GitHub Packages 认证
+      # 安装依赖 (剥离 icqq 可选项, 避免 CI 拉取 GitHub Packages 认证失败)
+      - name: 安装依赖 (跳过 GitHub Packages)
         run: |
-          if [ -n "${{ env.GH_PAT }}" ]; then
-            echo "//npm.pkg.github.com/:_authToken=${{ env.GH_PAT }}" >> .npmrc
-            echo "::notice::使用 GH_PAT 认证 GitHub Packages"
-          else
-            echo "::warning::未配置 GH_PAT, 回退 GITHUB_TOKEN (@icqqjs/icqq 为可选依赖, 拉取失败不阻塞构建)"
-            echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
-          fi
-      # 安装依赖
-      - run: pnpm install --no-frozen-lockfile
+          node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.optionalDependencies['@icqqjs/icqq'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+          pnpm install --no-frozen-lockfile
       # 编译
       - id: build
         run: |
