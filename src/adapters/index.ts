@@ -2,20 +2,36 @@ import { config, onConfigChange } from '@/utils/config'
 import { logger } from 'node-karin'
 import { createOneBot11Bot } from './onebot11'
 import { createOneBot12Bot } from './onebot12'
-import { createIcqqBot } from './icqq'
 import { createMilkyBot } from './milky'
 import { createKookBot } from './kook'
 import { createQqBotBot } from './qqbot'
 import type { BaseBot, BotConfig, Protocol } from './base'
 
-/** 各协议 bot 工厂 */
-const factories: Record<Protocol, (cfg: BotConfig) => BaseBot<any> | undefined> = {
+/** 各协议 bot 工厂 (icqq 为可选适配器, 按需动态加载) */
+const factories: Partial<Record<Protocol, (cfg: BotConfig) => BaseBot<any> | undefined>> = {
   onebot11: createOneBot11Bot,
   onebot12: createOneBot12Bot,
-  icqq: createIcqqBot,
   milky: createMilkyBot,
   kook: createKookBot,
   qqbot: createQqBotBot,
+}
+
+/** GitHub Packages 认证 + 安装 @icqqjs/icqq (日志提示与 server 保存拦截共用) */
+export const ICQQ_INSTALL_CMD = 'npm config set @icqqjs:registry=https://npm.pkg.github.com && npm login --scope=@icqqjs --auth-type=legacy --registry=https://npm.pkg.github.com && pnpm add @icqqjs/icqq@1.12.3 -w'
+
+/** 动态加载 icqq 适配器; 未安装 / 装错包 / 版本过低时给出可操作提示并跳过 */
+const loadIcqq = async (cfg: BotConfig): Promise<BaseBot<any> | undefined> => {
+  const uin = cfg.uin || ''
+  try {
+    const { createIcqqBot } = await import('./icqq')
+    return createIcqqBot(cfg)
+  } catch (e) {
+    const msg = (e as Error)?.message || String(e)
+    logger.warn(`[adapters] icqq 适配器不可用 (${uin}): ${/Cannot find|MODULE_NOT_FOUND/.test(msg)
+      ? `未安装 @icqqjs/icqq (勿装 npm 老包 icqq@0.6.10), 执行: ${ICQQ_INSTALL_CMD}`
+      : `请升级 @icqqjs/icqq 至 1.12.x: pnpm add @icqqjs/icqq@1.12.3 -w (${msg})`}`)
+    return undefined
+  }
 }
 
 /** bot 唯一标识: 协议+实现+通信方式+地址+事件地址+事件接收方式+token+各协议专属参数 */
@@ -37,8 +53,9 @@ const addrOf = (cfg: BotConfig) => {
 
 /** 启动单个 bot 并登记 */
 export const boot = async (cfg: BotConfig) => {
-  const create = factories[cfg.protocol]
-  const bot = create?.(cfg)
+  const bot = cfg.protocol === 'icqq'
+    ? await loadIcqq(cfg)
+    : factories[cfg.protocol]?.(cfg)
   if (!bot) return
   const key = keyOf(cfg)
   running.set(key, { cfg, bot })

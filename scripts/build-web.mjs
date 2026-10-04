@@ -13,6 +13,9 @@ const webDir = path.join(root, 'web')
 const outDir = path.join(webDir, 'out')
 const targetDir = path.join(root, 'resources', 'web')
 
+console.log('[web] 安装依赖...')
+// web 不在根 workspace 中，需独立安装依赖（本地与 CI 均走此入口）
+execSync('pnpm install', { cwd: webDir, stdio: 'inherit' })
 console.log('[web] 构建 next.js 配置面板...')
 // 清理 next 缓存 避免增量构建的 not-found / trace 偶发报错
 fs.rmSync(path.join(webDir, '.next'), { recursive: true, force: true })

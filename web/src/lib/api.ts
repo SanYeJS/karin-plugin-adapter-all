@@ -151,6 +151,13 @@ export const saveConfigApi = async (config: PluginConfig): Promise<{ success: bo
   return { success: res.ok && json?.code !== 500, message }
 }
 
+/** 探测 @icqqjs/icqq 是否已安装 (ICQQ 卡片展示安装引导) */
+export const fetchIcqqStatus = async (): Promise<boolean> => {
+  const res = await fetch(`${getApiBase()}/icqq/status`, { headers: { Accept: 'application/json' } })
+  const json = await res.json().catch(() => null)
+  return Boolean(json?.data?.available)
+}
+
 /** 代理获取签名服务 /ver 可用版本列表 (后端转发, 避开浏览器 CORS) */
 export const fetchSignVersions = async (addr: string, uin?: string): Promise<{ ver: string[] }> => {
   const params = new URLSearchParams({ addr: addr.trim() })

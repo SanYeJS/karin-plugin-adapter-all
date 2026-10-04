@@ -7,7 +7,7 @@ import {
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import {
-  fetchConfig, fromForm, saveConfigApi, saveHostOverride, toForm,
+  fetchConfig, fetchIcqqStatus, fromForm, saveConfigApi, saveHostOverride, toForm,
   type BotConfig, type BotForm,
 } from '@/lib/api'
 import BotCard from '@/components/bot-card'
@@ -57,6 +57,8 @@ export default function ConfigPage () {
   const seq = useRef(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  /** @icqqjs/icqq 是否已安装 (false 时 ICQQ 卡片展示安装引导) */
+  const [icqqAvailable, setIcqqAvailable] = useState(true)
 
   // 后端地址覆盖 (next dev 跨源联调)
   const [host, setHost] = useState('')
@@ -82,6 +84,7 @@ export default function ConfigPage () {
       })
       .catch((err: Error) => toast.error(`加载配置失败: ${err.message}`))
       .finally(() => setLoading(false))
+    fetchIcqqStatus().then(setIcqqAvailable).catch(() => setIcqqAvailable(true))
   }, [])
 
   const patchItem = useCallback((id: number, patch: Partial<BotForm>) => {
@@ -128,6 +131,11 @@ export default function ConfigPage () {
     )
     if (needEvent.length) {
       toast.error(`有 ${needEvent.length} 个已启用的连接未填写「事件上报/流地址」，请补充后再保存`)
+      return
+    }
+    // ICQQ 未安装时直接拦截, 引导先装包 (后端 POST 也有兜底校验)
+    if (items.some((it) => it.form.enable && it.form.protocol === 'icqq') && !icqqAvailable) {
+      toast.error('ICQQ 机器人需要安装 @icqqjs/icqq (勿装 npm 老包 icqq@0.6.10)，安装命令见 ICQQ 卡片提示，装好后保存即生效')
       return
     }
     setSaving(true)
@@ -368,6 +376,7 @@ export default function ConfigPage () {
                     value={String(it.id)}
                     index={i}
                     form={it.form}
+                    icqqAvailable={icqqAvailable}
                     onChange={(patch) => patchItem(it.id, patch)}
                     onRemove={() => removeItem(it.id)}
                     onQrBound={(v) => void handleQrBound(it.id, v)}

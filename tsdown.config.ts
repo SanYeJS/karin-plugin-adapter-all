@@ -18,6 +18,9 @@ export const options: UserConfig = {
     neverBundle: [
       'node-karin',
       /^node-karin\//,
+      // icqq 为可选依赖，不打包；缺失时由 adapters/index.ts 动态加载并给出提示
+      '@icqqjs/icqq',
+      /^@icqqjs\/icqq\//,
     ],
   },
   shims: true,

@@ -5,7 +5,7 @@ import { dir } from '@/dir'
 import { WEB_PREFIX, config, saveConfig } from '@/utils/config'
 import { subscribeLoginSSE, emitLoginEvent } from '@/utils/login-events'
 import { startQr, pollQr, cancelQr } from '@/utils/qqbot-qr'
-import { findIcqqBot } from '@/adapters'
+import { ICQQ_INSTALL_CMD, findIcqqBot } from '@/adapters'
 import type { BotConfig, OneBot11Communication, OneBot11Impl, Protocol } from '@/adapters/base'
 
 /** next 静态导出产物目录 */
@@ -106,6 +106,19 @@ const normalizeBot = (item: Record<string, any>): BotConfig | undefined => {
 /** 配置读写路由 */
 const apiRouter = express.Router()
 
+/**
+ * @description 探测 @icqqjs/icqq 是否已安装 (webui 保存 icqq 配置前预检)
+ * 不缓存结果: 用户装完包后再次保存即可直接生效, 无需重启插件
+ */
+const icqqReady = async (): Promise<boolean> => {
+  try {
+    await import('@icqqjs/icqq')
+    return true
+  } catch {
+    return false
+  }
+}
+
 // 简单 CORS: next dev 跨源联调时允许访问 (生产同源无影响)
 apiRouter.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin ?? '*')
@@ -123,8 +136,13 @@ apiRouter.get('/', (_req, res) => {
   createSuccessResponse(res, config())
 })
 
-/** 保存配置 写入后由 config 监听自动热更新 */
-apiRouter.post('/', (req, res) => {
+/** 探测 @icqqjs/icqq 是否已安装 (webui ICQQ 卡片展示安装引导用) */
+apiRouter.get('/icqq/status', async (_req, res) => {
+  createSuccessResponse(res, { available: await icqqReady() })
+})
+
+/** 保存配置 写入后由 config 监听自动热更新; icqq 未安装时拦截并引导安装 */
+apiRouter.post('/', async (req, res) => {
   try {
     const body = (req.body ?? {}) as { bots?: unknown }
     if (!Array.isArray(body.bots)) throw new Error('bots 字段必须是数组')
@@ -132,6 +150,10 @@ apiRouter.post('/', (req, res) => {
       .filter((b): b is Record<string, any> => Boolean(b && typeof b === 'object'))
       .map((b) => normalizeBot(b))
       .filter((b): b is BotConfig => Boolean(b))
+    if (bots.some((b) => b.protocol === 'icqq' && b.enable) && !(await icqqReady())) {
+      createServerErrorResponse(res, `ICQQ 机器人需要安装 @icqqjs/icqq (勿装 npm 老包 icqq@0.6.10), 请先执行: ${ICQQ_INSTALL_CMD}`)
+      return
+    }
     saveConfig({ bots })
     createSuccessResponse(res, null, `保存成功，已生效 ${bots.length} 个连接`)
   } catch (err) {

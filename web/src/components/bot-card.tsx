@@ -184,13 +184,15 @@ export interface BotCardProps {
   value: string
   index: number
   form: BotForm
+  /** @icqqjs/icqq 是否已安装 (false 时 ICQQ 卡片展示安装引导, 后端也会拦截保存) */
+  icqqAvailable: boolean
   onChange: (patch: Partial<BotForm>) => void
   onRemove: () => void
   /** qqbot 扫码绑定成功回调 (父组件用于自动保存并连接机器人) */
   onQrBound?: (v: QrBindResult) => void
 }
 
-export default function BotCard ({ value, index, form, onChange, onRemove, onQrBound }: BotCardProps) {
+export default function BotCard ({ value, index, form, icqqAvailable, onChange, onRemove, onQrBound }: BotCardProps) {
   const patch = (p: Partial<BotForm>) => onChange(p)
   /** 签名服务 /ver 拉取的可用版本列表 (icqq 协议版本下拉) */
   const [signVersions, setSignVersions] = useState<string[]>([])
@@ -342,6 +344,15 @@ export default function BotCard ({ value, index, form, onChange, onRemove, onQrB
       </AccordionPrimitive.Header>
 
       <AccordionContent className='px-4 pt-4'>
+        {isIcqq && !icqqAvailable && (
+          <div className='mb-4 flex flex-col gap-1.5 rounded-lg border border-amber-300/70 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200'>
+            <p className='font-medium'>ICQQ 协议需要安装 @icqqjs/icqq 才能连接 (勿装 npm 老包 icqq@0.6.10)。未安装时无法保存。</p>
+            <p className='font-mono break-all' dir='ltr'>
+              npm config set @icqqjs:registry=https://npm.pkg.github.com && npm login --scope=@icqqjs --auth-type=legacy --registry=https://npm.pkg.github.com && pnpm add @icqqjs/icqq@1.12.3 -w
+            </p>
+            <p>在工作目录执行上述命令，装好后回到本页保存即生效，无需重启。</p>
+          </div>
+        )}
         <div className='grid grid-cols-1 gap-x-4 gap-y-4 @[26rem]:grid-cols-2'>
           <Field label='协议' required>
             <Dropdown
