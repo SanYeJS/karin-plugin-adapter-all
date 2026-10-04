@@ -1,0 +1,80 @@
+{
+  "name": "karin-plugin-adapter-all",
+  "version": "0.0.1",
+  "author": "shijin",
+  "type": "module",
+  "description": "多协议统一适配器: onebot11(snowluma/napcat/lagrange) | onebot12 | icqq | milky",
+  "homepage": "https://github.com/KarinJS/karin",
+  "bugs": {
+    "url": "https://github.com/KarinJS/karin/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KarinJS/karin.git"
+  },
+  "scripts": {
+    "app": "node dist/app.js",
+    "build": "tsdown && pnpm build:web",
+    "build:web": "node scripts/build-web.mjs",
+    "dev": "pnpm dev:core",
+    "dev:core": "cross-env EBV_FILE=\"development.env\" node --import tsx src/app.ts",
+    "dev:web": "node scripts/dev-web.mjs",
+    "pub": "npm publish --access public"
+  },
+  "main": "dist/index.js",
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/lodash": "^4.17.16",
+    "@types/node": "^20.17.8",
+    "@types/qrcode": "^1.5.6",
+    "concurrently": "^10.0.5",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.7.0",
+    "neostandard": "^0.11.9",
+    "node-karin": "^1.17.0",
+    "tsdown": "^0.22.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.5.3"
+  },
+  "karin": {
+    "main": "src/index.ts",
+    "web": "./dist/web.config.js",
+    "ts-web": "./src/web.config.ts",
+    "apps": [
+      "dist/apps"
+    ],
+    "ts-apps": [
+      "src/apps"
+    ],
+    "static": [
+      "resources"
+    ],
+    "files": [
+      "config",
+      "data",
+      "resources"
+    ]
+  },
+  "files": [
+    "/dist/**/*.js",
+    "/dist/**/*.d.ts",
+    "/config/*.json",
+    "resources",
+    "!dist/app.js",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "dependencies": {
+    "@icqqjs/icqq": "1.12.3",
+    "@karinjs/plugin-basic": "^1.4.14",
+    "@karinjs/plugin-shotium": "^0.3.6",
+    "@saltify/milky-types": "^1.2.2",
+    "@snowluma/sdk": "^1.14.20",
+    "@ys7zts/karin-plugin-nekostatus": "^1.4.13",
+    "qrcode": "^1.5.4",
+    "ws": "npm:@karinjs/ws@1.0.4"
+  }
+}

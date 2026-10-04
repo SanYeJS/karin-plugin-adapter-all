@@ -1,0 +1,115 @@
+import { IncomingMessage, OutgoingSegment } from '@saltify/milky-types'
+import { contactFriend, contactGroup, contactGroupTemp, Contact, Elements, segment, SendElement } from 'node-karin'
+import { segment as Segment } from './segment'
+import type { MessageScene } from './msgId'
+
+/** milky bot 提供给段转换层的能力 (避免与主类循环依赖) */
+export interface ConvertCtx {
+  encodeMsgId (scene: MessageScene, peerId: number, seq: number): string
+  getFileUrl (contact: Contact, fileId: string): Promise<string>
+}
+
+/** milky 消息转 Karin */
+export async function AdapterConvertKarin (event: IncomingMessage, bot: ConvertCtx): Promise<Array<Elements>> {
+  const data = event.segments
+  const elements = []
+  for (const i of data) {
+    switch (i.type) {
+      case 'text':
+        elements.push(segment.text(i.data.text))
+        break
+      case 'mention':
+        elements.push(segment.at(String(i.data.user_id), i.data.name))
+        break
+      case 'mention_all':
+        elements.push(segment.at('all'))
+        break
+      case 'face':
+        elements.push(segment.face(Number(i.data.face_id)))
+        break
+      case 'reply':
+        elements.push(segment.reply(bot.encodeMsgId(event.message_scene, event.peer_id, i.data.message_seq)))
+        break
+      case 'image':
+        elements.push(segment.image(i.data.temp_url, { width: i.data.width, height: i.data.height, subType: i.data.sub_type, summary: i.data.summary }))
+        break
+      case 'record':
+        elements.push(segment.record(i.data.temp_url))
+        break
+      case 'video':
+        elements.push(segment.video(i.data.temp_url, { width: i.data.width, height: i.data.height }))
+        break
+      case 'file': {
+        const contact = event.message_scene === 'friend' ? contactFriend(event.peer_id + '') : event.message_scene === 'group' ? contactGroup(event.peer_id + '') : contactGroupTemp(event.group?.group_id + '', event.sender_id + '')
+        const url = await bot.getFileUrl(contact, i.data.file_id)
+        elements.push(segment.file(url, { fid: i.data.file_id, name: i.data.file_name, size: i.data.file_size, hash: i.data.file_hash || undefined }))
+        break
+      }
+      case 'forward': {
+        const parts: string[] = []
+        if ('title' in i.data && i.data.title) parts.push(String(i.data.title))
+        if ('summary' in i.data && i.data.summary) parts.push(String(i.data.summary))
+        parts.push(`forward_id=${i.data.forward_id}`)
+        elements.push(segment.text(`[合并转发 ${parts.join(' / ')}]`))
+        break
+      }
+      case 'market_face':
+        elements.push(segment.marketFace(i.data.emoji_package_id + ''))
+        break
+      case 'light_app':
+        elements.push(segment.json(i.data.json_payload))
+        break
+      case 'xml':
+        elements.push(segment.xml(i.data.xml_payload))
+        break
+      case 'markdown' as any:
+        elements.push(segment.markdown((i.data as any).content))
+        break
+      default:
+        elements.push(segment.text(JSON.stringify(i)))
+    }
+  }
+  return elements
+}
+
+/**
+ * data: URL 统一转 `base64://` scheme。
+ * milky 的 uri 仅支持 file:// http(s):// base64:// 三种格式
+ */
+const normalizeUri = (uri: string): string => {
+  const match = /^data:[^;,]*;base64,(.+)$/s.exec(uri)
+  return match ? `base64://${match[1]}` : uri
+}
+
+/** Karin 消息转 milky */
+export async function KarinConvertAdapter (data: Array<SendElement>): Promise<Array<OutgoingSegment>> {
+  const elements: Array<OutgoingSegment> = []
+  for (const i of data) {
+    switch (i.type) {
+      case 'text':
+        elements.push(Segment.text(i.text))
+        break
+      case 'at':
+        elements.push(Segment.at(i.targetId))
+        break
+      case 'face':
+        elements.push(Segment.face(i.id, i.isBig))
+        break
+      case 'reply':
+        elements.push(Segment.reply(i.messageId))
+        break
+      case 'image':
+        elements.push(Segment.image(normalizeUri(i.file), { summary: i.summary, subType: i.subType as any }))
+        break
+      case 'record':
+        elements.push(Segment.record(normalizeUri(i.file)))
+        break
+      case 'video':
+        elements.push(Segment.video(normalizeUri(i.file)))
+        break
+      default:
+        elements.push(Segment.text(JSON.stringify(i)))
+    }
+  }
+  return elements
+}
