@@ -11,6 +11,9 @@ jobs:
   release-please:
     # 设置工作流程运行环境为 Ubuntu
     runs-on: ubuntu-latest
+    # GitHub Packages 认证 token 先传到 job 级 env (secrets 不能在 if 条件中直接引用)
+    env:
+      GH_PAT: ${{ secrets.GH_PAT }}
     steps:
       # 使用 release-please-action@v3 动作
       - uses: google-github-actions/release-please-action@v3
@@ -36,8 +39,8 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
       # 配置 GitHub Packages 认证（@icqqjs/icqq 发布在 GitHub Packages）
       - name: 配置 GitHub Packages 认证
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GH_PAT }}" >> .npmrc
-        if: ${{ steps.release.outputs.release_created && secrets.GH_PAT != '' }}
+        run: echo "//npm.pkg.github.com/:_authToken=${{ env.GH_PAT }}" >> .npmrc
+        if: ${{ steps.release.outputs.release_created && env.GH_PAT != '' }}
       # 安装依赖
       - run: pnpm install --no-frozen-lockfile
         if: ${{ steps.release.outputs.release_created }}
@@ -56,6 +59,9 @@ jobs:
   sync-build:
     # 设置工作流程运行环境为 Ubuntu
     runs-on: ubuntu-latest
+    # GitHub Packages 认证 token 先传到 job 级 env (secrets 不能在 if 条件中直接引用)
+    env:
+      GH_PAT: ${{ secrets.GH_PAT }}
     steps:
       # 检出代码（保留完整历史）
       - uses: actions/checkout@v4
@@ -71,8 +77,8 @@ jobs:
           node-version: 22
       # 配置 GitHub Packages 认证（@icqqjs/icqq 发布在 GitHub Packages）
       - name: 配置 GitHub Packages 认证
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GH_PAT }}" >> .npmrc
-        if: ${{ secrets.GH_PAT != '' }}
+        run: echo "//npm.pkg.github.com/:_authToken=${{ env.GH_PAT }}" >> .npmrc
+        if: ${{ env.GH_PAT != '' }}
       # 安装依赖
       - run: pnpm install --no-frozen-lockfile
       # 编译
