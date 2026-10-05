@@ -14,11 +14,16 @@ export const options: UserConfig = {
   outDir: 'dist', // 输出目录
   treeshake: false, // 树摇优化
   minify: false, // 压缩代码
+  // @snowluma/sdk 的 dist 使用无扩展名 ESM 导入, 纯 node ESM 无法解析 (ERR_MODULE_NOT_FOUND),
+  // 构建期内联进产物以规避; icqq 为可选依赖，不打包；缺失时由 adapters/index.ts 动态加载并给出提示
+  noExternal: [
+    '@snowluma/sdk',
+    /^@snowluma\//,
+  ],
   deps: {
     neverBundle: [
       'node-karin',
       /^node-karin\//,
-      // icqq 为可选依赖，不打包；缺失时由 adapters/index.ts 动态加载并给出提示
       '@icqqjs/icqq',
       /^@icqqjs\/icqq\//,
     ],

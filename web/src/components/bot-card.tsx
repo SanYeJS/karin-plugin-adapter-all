@@ -12,6 +12,8 @@ import { Switch } from '@/components/ui/switch'
 import { AccordionContent, AccordionItem } from '@/components/ui/accordion'
 import LoginVerifyPanel from './login-verify'
 import QqbotQrConnect, { type QrBindResult } from './qqbot-qr-connect'
+import DouyinLogin, { type DouyinLoginResult } from './douyin-login'
+import WxocQrConnect, { type WxocQrResult } from './wxoc-qr-connect'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -73,17 +75,15 @@ const PLATFORM_OPTIONS = [
 
 /** icqq 滑动验证方式 */
 export const SLIDER_MODE_OPTIONS = [
-  { value: 'auto', label: '自动 (全部并行)' },
   { value: 'gt', label: 'GT 网页验证' },
-  { value: 'pages', label: '自建 Cloudflare Pages 验证页' },
   { value: 'txhelper', label: 'txhelper 请求码' },
   { value: 'manual', label: '手动 ticket 文件' },
 ]
 
 /** kook / qqbot 事件推送方式 (官方网关或 WebHook 回调) */
 const WS_WEBHOOK_OPTIONS = [
-  { value: 'ws', label: '官方 WebSocket 网关' },
-  { value: 'webhook', label: 'WebHook 回调' },
+  { value: 'ws', label: 'WebSocket' },
+  { value: 'webhook', label: 'WebHook' },
 ]
 
 interface Option { value: string; label: string }
@@ -149,6 +149,40 @@ function Dropdown ({
   )
 }
 
+/** 消息正则替换区块 (kook / qqbot / douyin / wxoc 共用) */
+function MsgReplaceSection ({ form, onChange }: { form: BotForm; onChange: (p: Partial<BotForm>) => void }) {
+  return (
+    <div className='space-y-1.5 @[26rem]:col-span-2'>
+      <div className='flex items-center justify-between gap-2'>
+        <Label className='text-muted-foreground text-xs font-normal'>
+          消息正则替换
+          <span className='ml-1 font-normal text-muted-foreground/60'>(选填)</span>
+        </Label>
+        <div className='flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground'>
+          <span>{form.msgReplaceEnable ? '开启' : '关闭'}</span>
+          <Switch
+            checked={form.msgReplaceEnable}
+            onCheckedChange={(v) => onChange({ msgReplaceEnable: v })}
+            title='启用 / 禁用消息正则替换'
+            aria-label='启用 / 禁用消息正则替换'
+          />
+        </div>
+      </div>
+      <textarea
+        value={form.msgReplace}
+        onChange={(e) => onChange({ msgReplace: e.target.value })}
+        placeholder={'^\\s*/ #'}
+        rows={3}
+        spellCheck={false}
+        className='border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-20 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:ring-[3px]'
+      />
+      <p className='text-xs leading-relaxed text-muted-foreground/70'>
+        每行一条「正则 替换」
+      </p>
+    </div>
+  )
+}
+
 /* ===== 布尔 / 哨兵值映射 ===== */
 
 const boolValue = (b: boolean) => (b ? 'on' : 'off')
@@ -190,9 +224,15 @@ export interface BotCardProps {
   onRemove: () => void
   /** qqbot 扫码绑定成功回调 (父组件用于自动保存并连接机器人) */
   onQrBound?: (v: QrBindResult) => void
+  /** 抖音扫码登录成功 (回填后由页面立即保存触发热更新注册) */
+  onDouyinBound?: (v: { douyinUid: string; douyinName: string }) => void
+  /** wxoc 扫码登录成功 (回填后由页面立即保存触发热更新注册) */
+  onWxocBound?: (v: { wxocToken: string; wxocAccountId: string; wxocUserId: string; wxocNickname: string; wxocBaseUrl: string }) => void
+  /** true 时展示必填红框 (仅保存校验失败后由父组件置 true) */
+  showErrors?: boolean
 }
 
-export default function BotCard ({ value, index, form, icqqAvailable, onChange, onRemove, onQrBound }: BotCardProps) {
+export default function BotCard ({ value, index, form, icqqAvailable, showErrors, onChange, onRemove, onQrBound, onDouyinBound, onWxocBound }: BotCardProps) {
   const patch = (p: Partial<BotForm>) => onChange(p)
   /** 签名服务 /ver 拉取的可用版本列表 (icqq 协议版本下拉) */
   const [signVersions, setSignVersions] = useState<string[]>([])
@@ -219,16 +259,35 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
   const isIcqq = form.protocol === 'icqq'
   const isKook = form.protocol === 'kook'
   const isQqBot = form.protocol === 'qqbot'
-  /** 协议直连(无 url): icqq / kook / qqbot */
-  const urlLess = isIcqq || isKook || isQqBot
-  /** 必填校验: icqq 检查 QQ 号(扫码登录除外) / kook 检查 token / qqbot 检查 appid+token; 其余检查连接地址 */
-  const urlMissing = form.enable && (isIcqq
+  const isDouyin = form.protocol === 'douyin'
+  const isWxoc = form.protocol === 'wxoc'
+  /** 头部摘要: 收起时展示关键配置 (QQ 号 / Token / 连接地址), 展开后隐藏避免冗余 */
+  const summary = isIcqq
+    ? (form.uin.trim() ? `QQ ${form.uin.trim()}` : '未配置 QQ 号')
+    : isKook
+      ? (form.kookToken.trim() ? 'Token 已配置' : '未配置 Token')
+      : isQqBot
+        ? (form.qqbotAppId.trim() ? `AppID ${form.qqbotAppId.trim()}` : '未配置 AppID')
+        : isDouyin
+          ? (form.douyinUid.trim() ? (form.douyinName.trim() || `UID ${form.douyinUid.trim()}`) : '未扫码登录')
+          : isWxoc
+            ? (form.wxocToken.trim() ? 'Token 已配置' : '未扫码登录')
+            : (form.url.trim() || '未配置连接地址')
+  /** 协议直连(无 url): icqq / kook / qqbot / douyin / wxoc */
+  const urlLess = isIcqq || isKook || isQqBot || isDouyin || isWxoc
+  /** 必填校验: icqq 检查 QQ 号(扫码登录除外) / kook 检查 token / qqbot 检查 appid+token / douyin 检查 uid / wxoc 检查 token+机器人ID; 其余检查连接地址 */
+  /** 必填缺失: 仅保存校验失败后 (showErrors) 标红提示 */
+  const urlMissing = showErrors && form.enable && (isIcqq
     ? form.loginType !== 'qrcode' && !form.uin.trim()
     : isKook
       ? !form.kookToken.trim()
       : isQqBot
         ? !form.qqbotAppId.trim() || !form.qqbotClientSecret.trim()
-        : !form.url.trim())
+        : isDouyin
+          ? !form.douyinUid.trim()
+          : isWxoc
+            ? !form.wxocToken.trim() || !form.wxocAccountId.trim()
+            : !form.url.trim())
   const isOneBot11 = form.protocol === 'onebot11'
   const isMilky = form.protocol === 'milky'
   const communication = isOneBot11 ? (form.communication || 'ws') : ''
@@ -258,11 +317,11 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
   const wsAddr = isWs ? parseWsAddress(form.url) : null
   /** URL 提示 随模式变化 */
   const URL_HINT = {
-    ws: '本端本地启动 WebSocket 服务端，协议端用 ws://本机IP:端口 接入；连接方须携带下方 Token，否则被 1008 拒绝',
-    'ws-reverse': '本端作为客户端主动连接协议端正向 WS 地址，地址与端口须与协议端一致',
-    http: '本端调用协议端 HTTP API 的地址（事件由下方上报地址接收）',
-    sse: '本端调用协议端 HTTP API 的地址（事件另从事件流地址接收）',
-    milky: 'milky 协议端地址 (Lagrange.Milky / Yogurt 等)；事件推送方式不同则本端订阅地址不同，API 统一 POST {地址}/api 发指令',
+    ws: '协议端连入此地址',
+    'ws-reverse': '本端连接的协议端地址',
+    http: '协议端 API 地址',
+    sse: '协议端 API 地址',
+    milky: 'milky 协议端地址',
   } as Record<string, string>
   const urlHint = isOneBot11
     ? (URL_HINT[communication] ?? URL_HINT.ws)
@@ -271,43 +330,90 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
   const showEventUrl = isHttp || isSse || isMilky && eventMode === 'webhook'
   const eventUrlLabel = isMilky ? 'WebHook 监听地址' : (isHttp ? '事件上报地址 (协议端 POST)' : '事件流地址 (协议端 SSE)')
   const eventUrlHint = isMilky
-    ? '本端 HTTP 服务监听地址，形如 0.0.0.0:8088；协议端 WebHook 推送填 http://本机IP:8088/webhook'
+    ? '如 0.0.0.0:8088'
     : (isHttp
-      ? '协议端将事件 POST 到此本端地址，须与协议端「事件上报配置」一致'
-      : '协议端 SSE 事件流地址，路径一般是 /events')
+      ? '协议端事件上报地址'
+      : '协议端 SSE 事件流地址')
   /** Token 在各模式下的作用不同 */
   const TOKEN_HINT = {
-    ws: '校验连接方身份：协议端连接时须携带此 Token，否则将被 1008 拒绝',
-    'ws-reverse': '作为客户端连接时携带，须与协议端设置的 Token 一致',
-    http: '调用协议端 API 时以 Bearer 方式携带，与协议端设置一致',
-    sse: '调用 API / 订阅事件流时携带，与协议端设置一致',
-    milky: '调用 API 与订阅事件时以 Bearer 方式携带，须与协议端设置一致',
-    'milky-webhook': '调用 API 时以 Bearer 方式携带；协议端 WebHook 推送也须携带此 Token',
+    ws: '协议端连入时携带',
+    'ws-reverse': '与协议端一致',
+    http: '调用 API 时携带',
+    sse: '调用 API 时携带',
+    milky: '与协议端一致',
+    'milky-webhook': '与协议端一致',
   } as Record<string, string>
   const tokenHint = isOneBot11
     ? (TOKEN_HINT[communication] ?? TOKEN_HINT.ws)
     : (isMilky ? (eventMode === 'webhook' ? TOKEN_HINT['milky-webhook'] : TOKEN_HINT.milky) : '')
   const tokenPlaceholder = isWs
-    ? '可选，如 1；协议端连接须携带'
-    : '可选，与协议端设置一致'
+    ? '协议端连接须携带'
+    : '与协议端一致'
 
   return (
-    <AccordionItem value={value} className='@container overflow-hidden rounded-xl border bg-card shadow-sm'>
-      {/* 头部: 点击展开 / 收起, 右侧为启用开关与删除 */}
+    <AccordionItem
+      value={value}
+      className='@container overflow-hidden rounded-xl border bg-card shadow-sm data-[state=open]:col-span-full'
+    >
+      {/* 头部: 点击展开 / 收起, 摘要仅收起时可见, 右侧为启用开关与删除 */}
       <AccordionPrimitive.Header className='flex min-w-0 items-center border-b border-border/60'>
-        <AccordionPrimitive.Trigger className='flex min-w-0 flex-1 items-center gap-2.5 py-3 pl-4 text-sm font-medium transition-colors select-none hover:bg-accent/50 [&[data-state=open]>svg]:rotate-180'>
+        <AccordionPrimitive.Trigger className='group flex min-w-0 flex-1 items-center gap-2.5 py-3 pl-4 text-sm font-medium transition-colors select-none hover:bg-accent/50 [&[data-state=open]>svg]:rotate-180'>
           <span
             className={cn(
               'h-2 w-2 shrink-0 rounded-full',
               urlMissing ? 'bg-red-500' : form.enable ? 'bg-emerald-500' : 'bg-muted-foreground/50',
             )}
             title={urlMissing
-              ? (isIcqq ? '缺少必填的 QQ 号' : isKook ? '缺少必填的 Kook Token' : isQqBot ? '缺少必填的 AppID / Token' : '缺少必填的连接地址')
+              ? (isIcqq
+                ? '缺少必填的 QQ 号'
+                : isKook
+                  ? '缺少必填的 Kook Token'
+                  : isQqBot
+                    ? '缺少必填的 AppID / Token'
+                    : isDouyin
+                      ? '缺少必填的抖音 UID'
+                      : isWxoc
+                        ? '缺少必填的 Token / 机器人 ID'
+                        : '缺少必填的连接地址')
               : form.enable ? '已启用' : '已停用'}
           />
           <span className='truncate'>{title}</span>
+          <span className='hidden min-w-0 truncate text-xs font-normal text-muted-foreground group-data-[state=open]:hidden @[34rem]:inline'>
+            · {summary}
+          </span>
         </AccordionPrimitive.Trigger>
         <div className='flex shrink-0 items-center gap-0.5 pr-2.5'>
+          {isQqBot && (
+            <QqbotQrConnect
+              onBound={(v) => {
+                patch({ qqbotAppId: v.appId, qqbotClientSecret: v.appSecret })
+                onQrBound?.(v)
+              }}
+            />
+          )}
+          {isDouyin && (
+            <DouyinLogin
+              onBound={(v: DouyinLoginResult) => {
+                patch({ douyinUid: v.uid, douyinName: v.name || form.douyinName })
+                onDouyinBound?.({ douyinUid: v.uid, douyinName: v.name || form.douyinName })
+              }}
+            />
+          )}
+          {isWxoc && (
+            <WxocQrConnect
+              onBound={(v: WxocQrResult) => {
+                const wxoc = {
+                  wxocToken: v.token,
+                  wxocAccountId: v.accountId,
+                  wxocUserId: v.userId,
+                  wxocNickname: v.nickname,
+                  wxocBaseUrl: v.baseUrl,
+                }
+                patch(wxoc)
+                onWxocBound?.(wxoc)
+              }}
+            />
+          )}
           <Switch
             checked={form.enable}
             onCheckedChange={(v) => patch({ enable: v })}
@@ -346,11 +452,11 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
       <AccordionContent className='px-4 pt-4'>
         {isIcqq && !icqqAvailable && (
           <div className='mb-4 flex flex-col gap-1.5 rounded-lg border border-amber-300/70 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200'>
-            <p className='font-medium'>ICQQ 协议需要安装 @icqqjs/icqq 才能连接 (勿装 npm 老包 icqq@0.6.10)。未安装时无法保存。</p>
+            <p className='font-medium'>需安装 @icqqjs/icqq，未安装时无法保存。</p>
             <p className='font-mono break-all' dir='ltr'>
               npm config set @icqqjs:registry=https://npm.pkg.github.com && npm login --scope=@icqqjs --auth-type=legacy --registry=https://npm.pkg.github.com && pnpm add @icqqjs/icqq@1.12.3 -w
             </p>
-            <p>在工作目录执行上述命令，装好后回到本页保存即生效，无需重启。</p>
+            <p>装好后回到本页保存即生效，无需重启。</p>
           </div>
         )}
         <div className='grid grid-cols-1 gap-x-4 gap-y-4 @[26rem]:grid-cols-2'>
@@ -379,7 +485,7 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
             </Field>
           )}
           {isMilky && (
-            <Field label='事件推送方式' required hint={eventMode === 'webhook' ? '本端开启 HTTP 服务接收协议端推送，需配置下方监听地址' : undefined}>
+            <Field label='事件推送方式' required hint={eventMode === 'webhook' ? '需填下方监听地址' : undefined}>
               <Dropdown
                 value={eventMode}
                 onChange={(v) => patch({ eventMode: v })}
@@ -414,7 +520,7 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
                       value={wsAddr?.host ?? ''}
                       placeholder='0.0.0.0'
                       aria-label='监听 IP'
-                      className={cn('flex-1 min-w-[8rem]', !form.url.trim() && 'border-destructive focus-visible:ring-destructive')}
+                      className={cn('flex-1 min-w-[8rem]', showErrors && !form.url.trim() && 'border-destructive focus-visible:ring-destructive')}
                       onChange={(e) => patch({ url: buildWsUrl(e.target.value, wsAddr?.port ?? '') })}
                     />
                     <span className='font-mono text-sm text-muted-foreground/80'>:</span>
@@ -423,7 +529,7 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
                       placeholder='8082'
                       aria-label='监听端口'
                       inputMode='numeric'
-                      className={cn('w-28', !form.url.trim() && 'border-destructive focus-visible:ring-destructive')}
+                      className={cn('w-28', showErrors && !form.url.trim() && 'border-destructive focus-visible:ring-destructive')}
                       onChange={(e) => patch({ url: buildWsUrl(wsAddr?.host ?? '', e.target.value) })}
                     />
                   </div>
@@ -433,7 +539,7 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
                   <Input
                     value={form.url}
                     placeholder={urlPlaceholder}
-                    className={cn(!form.url.trim() && 'border-destructive focus-visible:ring-destructive')}
+                    className={cn(showErrors && !form.url.trim() && 'border-destructive focus-visible:ring-destructive')}
                     onChange={(e) => patch({ url: e.target.value })}
                   />
                 </Field>
@@ -445,7 +551,7 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
               <Input
                 value={form.eventUrl}
                 placeholder={isMilky ? '0.0.0.0:8088' : isHttp ? 'http://0.0.0.0:8090/' : 'http://127.0.0.1:3000/events'}
-                className={cn(form.enable && !form.eventUrl.trim() && 'border-destructive focus-visible:ring-destructive')}
+                className={cn(showErrors && form.enable && !form.eventUrl.trim() && 'border-destructive focus-visible:ring-destructive')}
                 onChange={(e) => patch({ eventUrl: e.target.value })}
               />
             </Field>
@@ -463,13 +569,13 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
               <Field
                 label='QQ 号'
                 required={form.loginType !== 'qrcode'}
-                hint='登录使用的 QQ 号；扫码登录时可不填'
+                hint='扫码登录可不填'
               >
                 <Input
                   value={form.uin}
                   placeholder='10001'
                   inputMode='numeric'
-                  className={cn(form.enable && form.loginType !== 'qrcode' && !form.uin.trim() && 'border-destructive focus-visible:ring-destructive')}
+                  className={cn(showErrors && form.enable && form.loginType !== 'qrcode' && !form.uin.trim() && 'border-destructive focus-visible:ring-destructive')}
                   onChange={(e) => patch({ uin: e.target.value })}
                 />
               </Field>
@@ -481,7 +587,7 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
                 />
               </Field>
               {form.loginType === 'password' && (
-                <Field label='密码' required hint='首次登录后会自动保存 token，后续可改用快速登录'>
+                <Field label='密码' required hint='首次登录后自动保存'>
                   <Input
                     type='password'
                     value={form.password}
@@ -505,8 +611,8 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
                 label='协议版本'
                 optional
                 hint={verError || (signVersions.length
-                  ? `签名服务支持 ${signVersions.length} 个版本, 展开下拉选择`
-                  : '点击「获取版本」从签名服务 /ver 拉取可选版本')}
+                  ? `共 ${signVersions.length} 个版本`
+                  : '拉取可选版本')}
               >
                 <div className='flex gap-2'>
                   {signVersions.length > 0 ? (
@@ -535,51 +641,20 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
                   </Button>
                 </div>
               </Field>
-              <Field label='签名服务地址' optional hint='如 http://127.0.0.1:8080/；留空则使用库默认签名'>
+              <Field label='签名服务地址' optional hint='留空用库默认'>
                 <Input
                   value={form.signApiAddr}
                   placeholder='http://127.0.0.1:8080/'
                   onChange={(e) => patch({ signApiAddr: e.target.value })}
                 />
               </Field>
-              <Field
-                label='滑块验证方式'
-                optional
-                hint='触发滑动验证时如何处理；自动 = GT 网页验证 + txhelper 请求码 + 手动文件全部并行 (+ 已配置 Pages 地址时)'
-              >
+              <Field label='滑块验证方式' optional>
                 <Dropdown
-                  value={form.sliderMode || 'auto'}
+                  value={form.sliderMode || 'gt'}
                   onChange={(v) => patch({ sliderMode: v })}
                   options={SLIDER_MODE_OPTIONS}
                 />
               </Field>
-              {form.sliderMode === 'pages' && (
-                <>
-                  <Field
-                    label='验证码处理页地址 (Pages)'
-                    optional
-                    hint='自行部署在 Cloudflare Pages 的验证码处理页地址，如 https://xxx.pages.dev'
-                  >
-                    <Input
-                      value={form.captchaBase}
-                      placeholder='https://your-name.pages.dev'
-                      onChange={(e) => patch({ captchaBase: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    label='验证码服务 Token'
-                    optional
-                    hint='可选；若 Pages 端配置了 CAPTCHA_TOKEN，此处须填写一致'
-                  >
-                    <Input
-                      type='password'
-                      value={form.captchaToken}
-                      placeholder='Pages 端设置的 CAPTCHA_TOKEN'
-                      onChange={(e) => patch({ captchaToken: e.target.value })}
-                    />
-                  </Field>
-                </>
-              )}
               <div className='@[26rem]:col-span-2'>
                 <LoginVerifyPanel uin={form.uin} />
               </div>
@@ -587,148 +662,135 @@ export default function BotCard ({ value, index, form, icqqAvailable, onChange, 
           )}
           {isKook && (
             <>
-              <Field label='事件推送方式' required hint={form.kookEventMode === 'webhook' ? '本端开启 HTTP 服务接收 Kook 回调，需配置下方监听地址' : '官方 WebSocket 网关，无需额外配置'}>
+              <Field label='事件推送方式' required hint={form.kookEventMode === 'webhook' ? '需填下方监听地址' : undefined}>
                 <Dropdown
                   value={form.kookEventMode || 'ws'}
                   onChange={(v) => patch({ kookEventMode: v })}
                   options={WS_WEBHOOK_OPTIONS}
                 />
               </Field>
-              <Field label='Bot Token' required hint='Kook 开放平台机器人 Token (Authorization: Bot &lt;token&gt;)'>
+              <Field label='Bot Token' required hint='Kook 机器人 Token'>
                 <Input
                   type='password'
                   value={form.kookToken}
                   placeholder='1/MjE4Nxxxx'
-                  className={cn(form.enable && !form.kookToken.trim() && 'border-destructive focus-visible:ring-destructive')}
+                  className={cn(showErrors && form.enable && !form.kookToken.trim() && 'border-destructive focus-visible:ring-destructive')}
                   onChange={(e) => patch({ kookToken: e.target.value })}
                 />
               </Field>
-              <Field label='API 地址' optional hint='留空使用官方默认 https://www.kookapp.cn/api/v3'>
-                <Input
-                  value={form.kookApi}
-                  placeholder='https://www.kookapp.cn/api/v3'
-                  onChange={(e) => patch({ kookApi: e.target.value })}
-                />
-              </Field>
               {form.kookEventMode === 'webhook' && (
-                <Field label='WebHook 监听地址' required hint='本端监听形如 0.0.0.0:8091；Kook 开放平台回调地址填 http://公网IP:8091/webhook/kook'>
+                <Field label='WebHook 监听地址' required hint='如 0.0.0.0:8091'>
                   <Input
                     value={form.kookWebhookUrl}
                     placeholder='0.0.0.0:8091'
-                    className={cn(form.enable && !form.kookWebhookUrl.trim() && 'border-destructive focus-visible:ring-destructive')}
+                    className={cn(showErrors && form.enable && !form.kookWebhookUrl.trim() && 'border-destructive focus-visible:ring-destructive')}
                     onChange={(e) => patch({ kookWebhookUrl: e.target.value })}
                   />
                 </Field>
               )}
-              <div className='space-y-1.5 @[26rem]:col-span-2'>
-                <div className='flex items-center justify-between gap-2'>
-                  <Label className='text-muted-foreground text-xs font-normal'>
-                    消息正则替换
-                    <span className='ml-1 font-normal text-muted-foreground/60'>(选填)</span>
-                  </Label>
-                  <div className='flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground'>
-                    <span>{form.msgReplaceEnable ? '开启' : '关闭'}</span>
-                    <Switch
-                      checked={form.msgReplaceEnable}
-                      onCheckedChange={(v) => patch({ msgReplaceEnable: v })}
-                      title='启用 / 禁用消息正则替换'
-                      aria-label='启用 / 禁用消息正则替换'
-                    />
-                  </div>
-                </div>
-                <textarea
-                  value={form.msgReplace}
-                  onChange={(e) => patch({ msgReplace: e.target.value })}
-                  placeholder={'^\\s*/ #'}
-                  rows={3}
-                  spellCheck={false}
-                  className='border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-20 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:ring-[3px]'
-                />
-                <p className='text-xs leading-relaxed text-muted-foreground/70'>
-                  入站消息文本依次应用正则替换；每行一条「正则 替换」，如 ^\\s*/ # 将 /命令 转为 Karin 默认前缀的 #命令
-                </p>
-              </div>
+              <MsgReplaceSection form={form} onChange={patch} />
             </>
           )}
           {isQqBot && (
             <>
-              <Field label='事件推送方式' required hint={form.qqbotEventMode === 'webhook' ? '本端开启 HTTP 服务接收开放平台回调，需配置下方监听地址' : '官方 WebSocket 网关，无需额外配置'}>
+              <Field label='事件推送方式' required hint={form.qqbotEventMode === 'webhook' ? '需填下方监听地址' : undefined}>
                 <Dropdown
                   value={form.qqbotEventMode || 'ws'}
                   onChange={(v) => patch({ qqbotEventMode: v })}
                   options={WS_WEBHOOK_OPTIONS}
                 />
               </Field>
-              <Field label='AppID' required hint='QQ 开放平台机器人的 AppID'>
+              <Field label='AppID' required hint='开放平台后台获取'>
                 <Input
                   value={form.qqbotAppId}
                   placeholder='1020xxxx'
-                  className={cn(form.enable && !form.qqbotAppId.trim() && 'border-destructive focus-visible:ring-destructive')}
+                  className={cn(showErrors && form.enable && !form.qqbotAppId.trim() && 'border-destructive focus-visible:ring-destructive')}
                   onChange={(e) => patch({ qqbotAppId: e.target.value })}
                 />
               </Field>
-              <div className='@[26rem]:col-span-2'>
-                <QqbotQrConnect
-                  onBound={(v) => {
-                    patch({ qqbotAppId: v.appId, qqbotClientSecret: v.appSecret })
-                    onQrBound?.(v)
-                  }}
-                />
-              </div>
-              <Field label='App Secret' required hint='QQ 开放平台「开发设置」的 AppSecret；官方新鉴权 AccessToken 机制（Token 旧鉴权已废弃）'>
+              <Field label='App Secret' required hint='开放平台后台获取'>
                 <Input
                   type='password'
                   value={form.qqbotClientSecret}
                   placeholder='xxxxxxxx'
-                  className={cn(form.enable && !form.qqbotClientSecret.trim() && 'border-destructive focus-visible:ring-destructive')}
+                  className={cn(showErrors && form.enable && !form.qqbotClientSecret.trim() && 'border-destructive focus-visible:ring-destructive')}
                   onChange={(e) => patch({ qqbotClientSecret: e.target.value })}
                 />
               </Field>
-              <Field label='API 地址' optional hint='留空使用官方默认 https://api.sgroup.qq.com'>
-                <Input
-                  value={form.qqbotApi}
-                  placeholder='https://api.sgroup.qq.com'
-                  onChange={(e) => patch({ qqbotApi: e.target.value })}
-                />
-              </Field>
               {form.qqbotEventMode === 'webhook' && (
-                <Field label='WebHook 监听地址' required hint='本端监听形如 0.0.0.0:8092；开放平台回调地址填 http://公网IP:8092/webhook/qqbot'>
+                <Field label='WebHook 监听地址' required hint='如 0.0.0.0:8092'>
                   <Input
                     value={form.qqbotWebhookUrl}
                     placeholder='0.0.0.0:8092'
-                    className={cn(form.enable && !form.qqbotWebhookUrl.trim() && 'border-destructive focus-visible:ring-destructive')}
+                    className={cn(showErrors && form.enable && !form.qqbotWebhookUrl.trim() && 'border-destructive focus-visible:ring-destructive')}
                     onChange={(e) => patch({ qqbotWebhookUrl: e.target.value })}
                   />
                 </Field>
               )}
-              <div className='space-y-1.5 @[26rem]:col-span-2'>
-                <div className='flex items-center justify-between gap-2'>
-                  <Label className='text-muted-foreground text-xs font-normal'>
-                    消息正则替换
-                    <span className='ml-1 font-normal text-muted-foreground/60'>(选填)</span>
-                  </Label>
-                  <div className='flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground'>
-                    <span>{form.msgReplaceEnable ? '开启' : '关闭'}</span>
-                    <Switch
-                      checked={form.msgReplaceEnable}
-                      onCheckedChange={(v) => patch({ msgReplaceEnable: v })}
-                      title='启用 / 禁用消息正则替换'
-                      aria-label='启用 / 禁用消息正则替换'
-                    />
-                  </div>
-                </div>
-                <textarea
-                  value={form.msgReplace}
-                  onChange={(e) => patch({ msgReplace: e.target.value })}
-                  placeholder={'^\\s*/ #'}
-                  rows={3}
-                  spellCheck={false}
-                  className='border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-20 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:ring-[3px]'
+              <MsgReplaceSection form={form} onChange={patch} />
+            </>
+          )}
+          {isDouyin && (
+            <>
+              <Field label='抖音 UID' required className='@[26rem]:col-span-2' hint='右上角扫码登录后自动回填'>
+                <Input
+                  value={form.douyinUid}
+                  placeholder='扫码登录后自动获取'
+                  readOnly
+                  className={cn('min-w-0', showErrors && form.enable && !form.douyinUid.trim() && 'border-destructive focus-visible:ring-destructive')}
                 />
-                <p className='text-xs leading-relaxed text-muted-foreground/70'>
-                  入站消息文本依次应用正则替换；每行一条「正则 替换」，如 ^\\s*/ # 将 /命令 转为 Karin 默认前缀的 #命令
-                </p>
-              </div>
+              </Field>
+              <Field label='账号昵称' optional hint='备注用 可留空'>
+                <Input
+                  value={form.douyinName}
+                  placeholder='扫码登录后自动回填'
+                  onChange={(e) => patch({ douyinName: e.target.value })}
+                />
+              </Field>
+              <MsgReplaceSection form={form} onChange={patch} />
+            </>
+          )}
+          {isWxoc && (
+            <>
+              <Field label='登录凭证 Token' required className='@[26rem]:col-span-2' hint='右上角扫码登录后自动回填'>
+                <Input
+                  type='password'
+                  value={form.wxocToken}
+                  placeholder='扫码登录后自动获取'
+                  className={cn('min-w-0', showErrors && form.enable && !form.wxocToken.trim() && 'border-destructive focus-visible:ring-destructive')}
+                  onChange={(e) => patch({ wxocToken: e.target.value })}
+                />
+              </Field>
+              <Field label='机器人 ID' required hint='ilink 机器人 ID 扫码后自动回填'>
+                <Input
+                  value={form.wxocAccountId}
+                  placeholder='扫码登录后自动获取'
+                  className={cn(showErrors && form.enable && !form.wxocAccountId.trim() && 'border-destructive focus-visible:ring-destructive')}
+                  onChange={(e) => patch({ wxocAccountId: e.target.value })}
+                />
+              </Field>
+              <Field label='用户 ID' optional hint='ilink 用户 ID 扫码后自动回填'>
+                <Input
+                  value={form.wxocUserId}
+                  placeholder='扫码登录后自动获取'
+                  onChange={(e) => patch({ wxocUserId: e.target.value })}
+                />
+              </Field>
+              <Field label='昵称' optional>
+                <Input
+                  value={form.wxocNickname}
+                  placeholder='扫码登录后自动回填'
+                  onChange={(e) => patch({ wxocNickname: e.target.value })}
+                />
+              </Field>
+              <Field label='API 地址' optional hint='登录返回的服务地址 留空用默认'>
+                <Input
+                  value={form.wxocBaseUrl}
+                  placeholder='扫码登录后自动回填'
+                  onChange={(e) => patch({ wxocBaseUrl: e.target.value })}
+                />
+              </Field>
+              <MsgReplaceSection form={form} onChange={patch} />
             </>
           )}
         </div>

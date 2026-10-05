@@ -69,7 +69,7 @@ export class Client {
   constructor (cfg: BotConfig) {
     this.appId = cfg.qqbotAppId || ''
     this.clientSecret = cfg.qqbotClientSecret || ''
-    const baseURL = (cfg.qqbotApi || 'https://api.bot.qq.com').replace(/\/+$/, '')
+    const baseURL = 'https://api.bot.qq.com'
     this.#axios = axios.create({
       baseURL,
       headers: {

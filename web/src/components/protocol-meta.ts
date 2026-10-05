@@ -7,6 +7,8 @@ export const PROTOCOL_TEXT: Record<string, string> = {
   milky: 'Milky',
   kook: 'Kook',
   qqbot: 'QQBot',
+  douyin: '抖音',
+  wxoc: '微信 Claw',
 }
 
 /** Kook / QQBot 事件接收方式展示名 (ws=官方网关, webhook=本端 HTTP 回调) */

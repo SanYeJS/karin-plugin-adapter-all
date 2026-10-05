@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { resolveHost } from './api'
+import { getStoredAuth } from './api'
 
 /** 登录验证阶段 (与后端 src/utils/login-events.ts 对应) */
 export type LoginPhase =
@@ -76,7 +76,8 @@ const initLoginEvents = () => {
   if (initialized) return
   initialized = true
   try {
-    es = new EventSource(`${resolveHost()}/adapter-all/api/login/events`)
+    // EventSource 无法携带请求头, 走 query.token 鉴权 (后端 authGuard 兼容)
+    es = new EventSource(`/adapter-all/api/login/events?token=${encodeURIComponent(getStoredAuth())}`)
   } catch {
     return
   }

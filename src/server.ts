@@ -1,18 +1,21 @@
 import path from 'node:path'
+import crypto from 'node:crypto'
 import express from 'node-karin/express'
-import { app, createServerErrorResponse, createSuccessResponse, logger } from 'node-karin'
+import { app, config as karinRoot, createServerErrorResponse, createSuccessResponse, createUnauthorizedResponse, logger } from 'node-karin'
 import { dir } from '@/dir'
 import { WEB_PREFIX, config, saveConfig } from '@/utils/config'
 import { subscribeLoginSSE, emitLoginEvent } from '@/utils/login-events'
 import { startQr, pollQr, cancelQr } from '@/utils/qqbot-qr'
-import { ICQQ_INSTALL_CMD, findIcqqBot } from '@/adapters'
+import { startDouyinLogin, pollDouyinLogin, submitDouyinMfa, cancelDouyinLogin } from '@/adapters/douyin/login'
+import { startWxocQr, pollWxocQr, cancelWxocQr } from '@/adapters/wxoc/qr'
+import { ICQQ_INSTALL_CMD, findIcqqBot, isQqbotOnline, isDouyinOnline, isWxocOnline } from '@/adapters'
 import type { BotConfig, OneBot11Communication, OneBot11Impl, Protocol } from '@/adapters/base'
 
 /** next 静态导出产物目录 */
 const webDir = path.join(dir.pluginDir, 'resources', 'web')
 
 /** 支持的协议端 */
-const protocols: Protocol[] = ['onebot11', 'onebot12', 'icqq', 'milky', 'kook', 'qqbot']
+const protocols: Protocol[] = ['onebot11', 'onebot12', 'icqq', 'milky', 'kook', 'qqbot', 'douyin', 'wxoc']
 /** onebot11 支持的具体实现 */
 const impls: OneBot11Impl[] = ['snowluma', 'napcat', 'lagrange', 'std']
 
@@ -25,8 +28,8 @@ const normalizeBot = (item: Record<string, any>): BotConfig | undefined => {
   const protocol = (item.protocol || 'onebot11') as Protocol
   if (!protocols.includes(protocol)) return undefined
   const url = String(item.url || '').trim()
-  // icqq / kook / qqbot 为协议直连(token 或 appid 鉴权) 允许无 url
-  if (!['icqq', 'kook', 'qqbot'].includes(protocol) && !url) return undefined
+  // icqq / kook / qqbot / douyin / wxoc 为协议直连(token 或 appid 鉴权) 允许无 url
+  if (!['icqq', 'kook', 'qqbot', 'douyin', 'wxoc'].includes(protocol) && !url) return undefined
   const heartbeatInterval = Number(item.heartbeatInterval)
   const requestTimeout = Number(item.requestTimeout)
   const bot: BotConfig = { enable: item.enable !== false, protocol, url, reconnect: item.reconnect !== false }
@@ -60,19 +63,13 @@ const normalizeBot = (item: Record<string, any>): BotConfig | undefined => {
     if (ver) bot.ver = ver
     const signApiAddr = String(item.sign_api_addr || '').trim()
     if (signApiAddr) bot.sign_api_addr = signApiAddr
-    const sliderMode = String(item.sliderMode || 'auto')
-    if (['auto', 'gt', 'txhelper', 'pages', 'manual'].includes(sliderMode) && sliderMode !== 'auto') bot.sliderMode = sliderMode as BotConfig['sliderMode']
-    const captchaBase = String(item.captchaBase || '').trim()
-    if (captchaBase) bot.captchaBase = captchaBase
-    const captchaToken = String(item.captchaToken || '').trim()
-    if (captchaToken) bot.captchaToken = captchaToken
+    const sliderMode = String(item.sliderMode || 'gt')
+    if (['gt', 'txhelper', 'manual'].includes(sliderMode)) bot.sliderMode = sliderMode as BotConfig['sliderMode']
   }
   if (protocol === 'kook') {
     // kook 专属参数 (官方 API 直连, token 鉴权, 无 url)
     const kookToken = String(item.kookToken || '').trim()
     if (kookToken) bot.kookToken = kookToken
-    const kookApi = String(item.kookApi || '').trim()
-    if (kookApi) bot.kookApi = kookApi
     const kookEventMode = String(item.kookEventMode || 'ws')
     if (['ws', 'webhook'].includes(kookEventMode) && kookEventMode !== 'ws') bot.kookEventMode = kookEventMode as BotConfig['kookEventMode']
     const kookWebhookUrl = String(item.kookWebhookUrl || '').trim()
@@ -84,17 +81,37 @@ const normalizeBot = (item: Record<string, any>): BotConfig | undefined => {
     if (qqbotAppId) bot.qqbotAppId = qqbotAppId
     const qqbotClientSecret = String(item.qqbotClientSecret || '').trim()
     if (qqbotClientSecret) bot.qqbotClientSecret = qqbotClientSecret
-    const qqbotApi = String(item.qqbotApi || '').trim()
-    if (qqbotApi) bot.qqbotApi = qqbotApi
     const qqbotEventMode = String(item.qqbotEventMode || 'ws')
     if (['ws', 'webhook'].includes(qqbotEventMode) && qqbotEventMode !== 'ws') bot.qqbotEventMode = qqbotEventMode as BotConfig['qqbotEventMode']
     const qqbotWebhookUrl = String(item.qqbotWebhookUrl || '').trim()
     if (qqbotWebhookUrl) bot.qqbotWebhookUrl = qqbotWebhookUrl
   }
+  if (protocol === 'douyin') {
+    // douyin 专属参数 (扫码登录后凭据落盘 data/douyin-accounts, 配置仅存 uid/昵称)
+    const douyinUid = String(item.douyinUid || '').trim()
+    if (douyinUid) bot.douyinUid = douyinUid
+    const douyinName = String(item.douyinName || '').trim()
+    if (douyinName) bot.douyinName = douyinName
+    if (!douyinUid && !douyinName) return undefined
+  }
+  if (protocol === 'wxoc') {
+    // wxoc 专属参数 (扫码登录后回填, token 鉴权)
+    const wxocToken = String(item.wxocToken || '').trim()
+    const wxocAccountId = String(item.wxocAccountId || '').trim()
+    if (!wxocToken || !wxocAccountId) return undefined
+    bot.wxocToken = wxocToken
+    bot.wxocAccountId = wxocAccountId
+    const wxocUserId = String(item.wxocUserId || '').trim()
+    if (wxocUserId) bot.wxocUserId = wxocUserId
+    const wxocNickname = String(item.wxocNickname || '').trim()
+    if (wxocNickname) bot.wxocNickname = wxocNickname
+    const wxocBaseUrl = String(item.wxocBaseUrl || '').trim()
+    if (wxocBaseUrl) bot.wxocBaseUrl = wxocBaseUrl
+  }
   if (item.accessToken) bot.accessToken = String(item.accessToken).trim()
   if (Number.isFinite(heartbeatInterval) && heartbeatInterval > 0) bot.heartbeatInterval = heartbeatInterval
   if (Number.isFinite(requestTimeout) && requestTimeout > 0) bot.requestTimeout = requestTimeout
-  // 消息正则替换 (kook/qqbot): 过滤非法正则与空项
+  // 消息正则替换 (kook/qqbot/douyin/wxoc): 过滤非法正则与空项
   if (item.msgReplaceEnable === false) bot.msgReplaceEnable = false
   const msgReplace = (Array.isArray(item.msgReplace) ? item.msgReplace : [])
     .filter((r: any): r is any => Boolean(r && typeof r === 'object' && String(r.match || '').trim()))
@@ -105,6 +122,44 @@ const normalizeBot = (item: Record<string, any>): BotConfig | undefined => {
 
 /** 配置读写路由 */
 const apiRouter = express.Router()
+
+/** WebUI 鉴权秘钥 (与 Karin WebUI 同源: .env 的 HTTP_AUTH_KEY) */
+const webuiAuthKey = () => karinRoot.authKey()
+
+/**
+ * WebUI 鉴权 (与 Karin WebUI 同一 token 即 .env 的 HTTP_AUTH_KEY):
+ * - POST/GET 请求头 `Authorization: Bearer <token>`
+ * - GET (SSE EventSource 无法携带请求头) 兼容 `?token=` 查询参数
+ * 与 Karin authMiddleware 一致支持明文秘钥校验
+ */
+const extractAuthToken = (req: any): string =>
+  String(req.headers?.authorization ?? '').replace(/^Bearer\s+/i, '') ||
+  String(req.query?.token ?? '')
+
+/**
+ * 校验 Karin WebUI 下发的 JWT (HS256, secret = sha256(authKey)), 与 karin authMiddleware 同源可互认:
+ * WebUI 登录后把 accessToken 存在 localStorage (key: accessToken), 插件页面与其同源可直接读取携带
+ */
+const verifyKarinJwt = (token: string): boolean => {
+  const parts = token.split('.')
+  if (parts.length !== 3) return false
+  const secret = crypto.createHash('sha256').update(webuiAuthKey()).digest('hex')
+  const expect = crypto.createHmac('sha256', secret).update(`${parts[0]}.${parts[1]}`).digest('base64url')
+  if (expect !== parts[2]) return false
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString()) as { type?: string; exp?: number }
+    if (payload.type !== 'access') return false
+    return typeof payload.exp !== 'number' || payload.exp * 1000 > Date.now()
+  } catch {
+    return false
+  }
+}
+
+const authGuard = (req: any, res: any, next: () => void) => {
+  const token = extractAuthToken(req)
+  if (token && (token === webuiAuthKey() || verifyKarinJwt(token))) return next()
+  createUnauthorizedResponse(res, token ? 'token 无效' : '未登录')
+}
 
 /**
  * @description 探测 @icqqjs/icqq 是否已安装 (webui 保存 icqq 配置前预检)
@@ -130,6 +185,16 @@ apiRouter.use((req, res, next) => {
 
 // 解析 JSON body (Karin 主 app 未挂载全局 json 中间件)
 apiRouter.use(express.json())
+
+/** WebUI 登录: 校验 token 与 Karin WebUI 一致 (HTTP_AUTH_KEY), 通过后前端本地保存随请求携带 */
+apiRouter.post('/login', (req, res) => {
+  const raw = String(req.body?.authorization ?? '').replace(/^Bearer\s+/i, '') || extractAuthToken(req)
+  if (raw && raw === webuiAuthKey()) return createSuccessResponse(res, null, '登录成功')
+  createUnauthorizedResponse(res, 'token 错误')
+})
+
+// 登录外的所有配置 API 须携带 token
+apiRouter.use(authGuard)
 
 /** 读取当前配置 */
 apiRouter.get('/', (_req, res) => {
@@ -215,6 +280,8 @@ loginRouter.use((req, res, next) => {
   next()
 })
 loginRouter.use(express.json())
+// 登录验证 API 同样须鉴权 (SSE 走 query.token)
+loginRouter.use(authGuard)
 loginRouter.get('/events', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -290,6 +357,8 @@ qrRouter.use((req, res, next) => {
   next()
 })
 qrRouter.use(express.json())
+// 扫码绑定 API 同样须鉴权
+qrRouter.use(authGuard)
 
 qrRouter.post('/start', async (req, res) => {
   try {
@@ -321,7 +390,114 @@ qrRouter.post('/cancel', (req, res) => {
     createServerErrorResponse(res, `取消失败: ${err instanceof Error ? err.message : String(err)}`)
   }
 })
+
+/** 查询 qqbot 连接状态 (扫码绑定成功后前端轮询, 真正连上才提示「登录成功」) */
+qrRouter.get('/connected', (req, res) => {
+  const appId = String(req.query.appId ?? '').trim()
+  createSuccessResponse(res, { connected: isQqbotOnline(appId) })
+})
 app.use(`${WEB_PREFIX}/api/qqbot/qr`, qrRouter)
+
+/**
+ * 抖音扫码登录路由 (Web 面板):
+ *  - POST /start   创建登录会话, 返回 { id } (全局互斥, 二维码通过 status 轮询获取)
+ *  - POST /status  查询会话状态 (body.sid), phase: pending(含二维码 image)/scanned/verifying/mfa/success(带 uid/name)/expired/error
+ *  - POST /mfa     提交二次验证 (body.sid + body.code, 短信验证码或账号密码)
+ *  - POST /cancel  取消会话 (body.sid)
+ * 登录成功后凭据已落盘 data/douyin-accounts, 前端回填 douyinUid/douyinName 保存即可
+ */
+const douyinLoginRouter = express.Router()
+douyinLoginRouter.use(express.json())
+douyinLoginRouter.use(authGuard)
+
+douyinLoginRouter.post('/start', (_req, res) => {
+  const result = startDouyinLogin()
+  if ('error' in result) return createServerErrorResponse(res, result.error)
+  createSuccessResponse(res, result)
+})
+
+douyinLoginRouter.post('/status', async (req, res) => {
+  try {
+    const sid = String((req.body ?? {}).sid ?? '').trim()
+    if (!sid) throw new Error('缺少会话 id')
+    createSuccessResponse(res, await pollDouyinLogin(sid))
+  } catch (err) {
+    createServerErrorResponse(res, `查询登录状态失败: ${err instanceof Error ? err.message : String(err)}`)
+  }
+})
+
+douyinLoginRouter.post('/mfa', (req, res) => {
+  try {
+    const body = (req.body ?? {}) as { sid?: string; code?: string }
+    const sid = String(body.sid ?? '').trim()
+    const code = String(body.code ?? '').trim()
+    if (!sid) throw new Error('缺少会话 id')
+    if (!code) throw new Error('缺少验证码/密码')
+    if (!submitDouyinMfa(sid, code)) throw new Error('会话不存在或未在等待验证输入')
+    createSuccessResponse(res, null, '已提交, 登录继续中')
+  } catch (err) {
+    createServerErrorResponse(res, `提交失败: ${err instanceof Error ? err.message : String(err)}`)
+  }
+})
+
+douyinLoginRouter.post('/cancel', (req, res) => {
+  const sid = String((req.body ?? {}).sid ?? '').trim()
+  if (sid) cancelDouyinLogin(sid)
+  createSuccessResponse(res, null, '会话已取消')
+})
+
+/** 轮询抖音 bot 连接状态 (扫码登录成功配置写入后 前端据此展示「登录成功」) */
+douyinLoginRouter.get('/connected', (req, res) => {
+  createSuccessResponse(res, { connected: isDouyinOnline(String(req.query.uid ?? '')) })
+})
+app.use(`${WEB_PREFIX}/api/douyin/login`, douyinLoginRouter)
+
+/**
+ * 微信 Claw (wxoc) 扫码登录路由 (Web 面板):
+ *  - POST /start   创建扫码会话, 返回 { id, image }
+ *  - POST /status  查询会话状态 (body.sid), phase: pending/scanned(带 token/accountId/userId/nickname/baseUrl)/expired
+ *  - POST /cancel  取消会话 (body.sid)
+ * 扫码成功后由前端回填当前卡片表单, 用户点「保存配置」写入
+ */
+const wxocQrRouter = express.Router()
+wxocQrRouter.use(express.json())
+wxocQrRouter.use(authGuard)
+
+wxocQrRouter.post('/start', async (_req, res) => {
+  try {
+    createSuccessResponse(res, await startWxocQr())
+  } catch (err) {
+    logger.error(`[web] 创建 wxoc 扫码会话失败: ${err instanceof Error ? err.message : String(err)}`)
+    createServerErrorResponse(res, `创建扫码会话失败: ${err instanceof Error ? err.message : String(err)}`)
+  }
+})
+
+wxocQrRouter.post('/status', async (req, res) => {
+  try {
+    const sid = String((req.body ?? {}).sid ?? '').trim()
+    if (!sid) throw new Error('缺少会话 id')
+    createSuccessResponse(res, await pollWxocQr(sid))
+  } catch (err) {
+    createServerErrorResponse(res, `查询扫码状态失败: ${err instanceof Error ? err.message : String(err)}`)
+  }
+})
+
+wxocQrRouter.post('/cancel', (req, res) => {
+  try {
+    const sid = String((req.body ?? {}).sid ?? '').trim()
+    if (!sid) throw new Error('缺少会话 id')
+    cancelWxocQr(sid)
+    createSuccessResponse(res, null, '会话已取消')
+  } catch (err) {
+    createServerErrorResponse(res, `取消失败: ${err instanceof Error ? err.message : String(err)}`)
+  }
+})
+
+/** 轮询 wxoc bot 连接状态 (扫码成功配置写入后 前端据此展示「登录成功」) */
+wxocQrRouter.get('/connected', (req, res) => {
+  createSuccessResponse(res, { connected: isWxocOnline(String(req.query.accountId ?? '')) })
+})
+app.use(`${WEB_PREFIX}/api/wxoc/qr`, wxocQrRouter)
 
 app.use(WEB_PREFIX, express.static(webDir))
 

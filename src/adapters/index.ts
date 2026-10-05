@@ -5,6 +5,8 @@ import { createOneBot12Bot } from './onebot12'
 import { createMilkyBot } from './milky'
 import { createKookBot } from './kook'
 import { createQqBotBot } from './qqbot'
+import { createDouyinBot } from './douyin'
+import { createWxocBot } from './wxoc'
 import type { BaseBot, BotConfig, Protocol } from './base'
 
 /** 各协议 bot 工厂 (icqq 为可选适配器, 按需动态加载) */
@@ -14,6 +16,8 @@ const factories: Partial<Record<Protocol, (cfg: BotConfig) => BaseBot<any> | und
   milky: createMilkyBot,
   kook: createKookBot,
   qqbot: createQqBotBot,
+  douyin: createDouyinBot,
+  wxoc: createWxocBot,
 }
 
 /** GitHub Packages 认证 + 安装 @icqqjs/icqq (日志提示与 server 保存拦截共用) */
@@ -35,7 +39,7 @@ const loadIcqq = async (cfg: BotConfig): Promise<BaseBot<any> | undefined> => {
 }
 
 /** bot 唯一标识: 协议+实现+通信方式+地址+事件地址+事件接收方式+token+各协议专属参数 */
-const keyOf = (cfg: BotConfig) => `${cfg.protocol}|${cfg.impl || ''}|${cfg.communication || ''}|${cfg.url}|${cfg.eventUrl || ''}|${cfg.eventMode || ''}|${cfg.accessToken || ''}|${cfg.uin || ''}|${cfg.password || ''}|${cfg.loginType || ''}|${cfg.platform || ''}|${cfg.ver || ''}|${cfg.sign_api_addr || ''}|${cfg.sliderMode || ''}|${cfg.captchaBase || ''}|${cfg.captchaToken || ''}|${cfg.kookToken || ''}|${cfg.kookApi || ''}|${cfg.kookEventMode || ''}|${cfg.kookWebhookUrl || ''}|${cfg.qqbotAppId || ''}|${cfg.qqbotClientSecret || ''}|${cfg.qqbotApi || ''}|${cfg.qqbotEventMode || ''}|${cfg.qqbotWebhookUrl || ''}`
+const keyOf = (cfg: BotConfig) => `${cfg.protocol}|${cfg.impl || ''}|${cfg.communication || ''}|${cfg.url}|${cfg.eventUrl || ''}|${cfg.eventMode || ''}|${cfg.accessToken || ''}|${cfg.uin || ''}|${cfg.password || ''}|${cfg.loginType || ''}|${cfg.platform || ''}|${cfg.ver || ''}|${cfg.sign_api_addr || ''}|${cfg.sliderMode || ''}|${cfg.kookToken || ''}|${cfg.kookEventMode || ''}|${cfg.kookWebhookUrl || ''}|${cfg.qqbotAppId || ''}|${cfg.qqbotClientSecret || ''}|${cfg.qqbotEventMode || ''}|${cfg.qqbotWebhookUrl || ''}|${cfg.douyinUid || ''}|${cfg.douyinName || ''}|${cfg.wxocToken || ''}|${cfg.wxocAccountId || ''}|${cfg.wxocUserId || ''}|${cfg.wxocNickname || ''}|${cfg.wxocBaseUrl || ''}`
 
 /** 两份配置是否完全一致 (不一致视为需要重连) */
 const sameConfig = (a: BotConfig, b: BotConfig) => JSON.stringify(a) === JSON.stringify(b)
@@ -43,11 +47,13 @@ const sameConfig = (a: BotConfig, b: BotConfig) => JSON.stringify(a) === JSON.st
 /** 运行中的 bot 注册表 */
 const running = new Map<string, { cfg: BotConfig; bot: BaseBot<any> }>()
 
-/** 显示用地址 (icqq 用 icqq:uin, kook/qqbot 用 token/appid 摘要) */
+/** 显示用地址 (icqq 用 icqq:uin, kook/qqbot 用 token/appid 摘要, douyin/wxoc 用昵称或 uid) */
 const addrOf = (cfg: BotConfig) => {
   if (cfg.protocol === 'icqq') return `icqq:${cfg.uin || ''}`
   if (cfg.protocol === 'kook') return `kook:${cfg.kookToken || ''}`
   if (cfg.protocol === 'qqbot') return `qqbot:${cfg.qqbotAppId || ''}`
+  if (cfg.protocol === 'douyin') return `douyin:${cfg.douyinName || cfg.douyinUid || ''}`
+  if (cfg.protocol === 'wxoc') return `wxoc:${cfg.wxocNickname || cfg.wxocAccountId || ''}`
   return cfg.url
 }
 
@@ -87,6 +93,43 @@ export const findIcqqBot = (uin: string | number): BaseBot<any> | undefined => {
     if (entry.cfg.protocol === 'icqq' && String(entry.cfg.uin ?? '') === key) return entry.bot
   }
   return undefined
+}
+
+/** qqbot 是否已建立连接 (扫码绑定页面判断「登录成功」用) */
+export const isQqbotOnline = (appId: string | number): boolean => {
+  const target = String(appId ?? '').trim()
+  if (!target) return false
+  for (const [, entry] of running) {
+    if (entry.cfg.protocol !== 'qqbot') continue
+    if (String(entry.cfg.qqbotAppId ?? '').trim() !== target) continue
+    const raw: any = (entry.bot as any).raw
+    return Boolean(raw?.isConnected || raw?.mode === 'webhook')
+  }
+  return false
+}
+
+/** douyin 是否已建立连接 (扫码绑定页面判断「登录成功」用) */
+export const isDouyinOnline = (uid: string | number): boolean => {
+  const target = String(uid ?? '').trim()
+  if (!target) return false
+  for (const [, entry] of running) {
+    if (entry.cfg.protocol !== 'douyin') continue
+    if (String(entry.cfg.douyinUid ?? '').trim() !== target) continue
+    return entry.bot.adapter.index !== -1
+  }
+  return false
+}
+
+/** wxoc 是否已建立连接 (扫码绑定页面判断「登录成功」用) */
+export const isWxocOnline = (accountId: string | number): boolean => {
+  const target = String(accountId ?? '').trim()
+  if (!target) return false
+  for (const [, entry] of running) {
+    if (entry.cfg.protocol !== 'wxoc') continue
+    if (String(entry.cfg.wxocAccountId ?? '').trim() !== target) continue
+    return entry.bot.adapter.index !== -1
+  }
+  return false
 }
 
 /**

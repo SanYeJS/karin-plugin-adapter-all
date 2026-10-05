@@ -1,0 +1,2583 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 3c332a35d5a6f0e272e21f27eaa565b78ebe69c4..b0d21a0d8bdd714685a82a73684f44e20927f26f 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -1,174 +1,174 @@
+-import protobuf from "protobufjs";
++import protobuf from "protobufjs"
+ //#region src/im/protocol/ws.d.ts
+ interface WsReconnectEvent {
+-  attempt: number;
+-  delayMs: number;
+-  code?: number;
+-  reason?: string;
++  attempt: number
++  delayMs: number
++  code?: number
++  reason?: string
+ }
+ interface WsCloseEvent {
+-  code?: number;
+-  reason?: string;
++  code?: number
++  reason?: string
+ }
+ //#endregion
+ //#region src/im/source.d.ts
+ /** 媒体输入源：http(s) URL、本地文件路径、base64 串或原始字节 */
+-type MediaInput = string | Uint8Array | ArrayBuffer;
++type MediaInput = string | Uint8Array | ArrayBuffer
+ //#endregion
+ //#region src/im/media.d.ts
+ interface ImageResource {
+-  oid: string;
+-  skey: string;
+-  md5: string;
+-  dataSize: number;
+-  width: number;
+-  height: number;
+-  originUrls?: string[];
+-  largeUrls?: string[];
+-  mediumUrls?: string[];
+-  thumbUrls?: string[];
++  oid: string
++  skey: string
++  md5: string
++  dataSize: number
++  width: number
++  height: number
++  originUrls?: string[]
++  largeUrls?: string[]
++  mediumUrls?: string[]
++  thumbUrls?: string[]
+   /** 图片格式（发侧上传脚本可由 oid 推断；收侧缺省） */
+-  format?: ImageFormat;
++  format?: ImageFormat
+ }
+ /** 图片上传资产（uploadImage 返回；字段与 ImageResource 同形，发侧要求齐全） */
+ interface ImageAsset {
+-  oid: string;
+-  skey: string;
+-  md5: string;
+-  dataSize: number;
+-  width: number;
+-  height: number;
+-  format?: ImageFormat;
++  oid: string
++  skey: string
++  md5: string
++  dataSize: number
++  width: number
++  height: number
++  format?: ImageFormat
+ }
+ /** 视频上传资产（uploadVideo 返回） */
+ interface VideoAsset {
+-  tkey: string;
+-  skey: string;
+-  md5: string;
++  tkey: string
++  skey: string
++  md5: string
+ }
+ /** 视频发送项：source 简写（自动上传/抽帧封面）或预上传 asset */
+ type VideoSend = {
+-  source: MediaInput;
+-  poster?: MediaInput | ImageAsset;
+-  width?: number;
+-  height?: number;
++  source: MediaInput
++  poster?: MediaInput | ImageAsset
++  width?: number
++  height?: number
+ } | {
+-  asset: VideoAsset;
+-  poster?: ImageAsset;
+-  width?: number;
+-  height?: number;
+-};
++  asset: VideoAsset
++  poster?: ImageAsset
++  width?: number
++  height?: number
++}
+ /** batch_play_info 换取的加密视频地址（CENC 加密流，下载后用 decryptCencMp4 解密才能播放） */
+ interface EncryptedVideoUrl {
+-  mainUrl: string;
+-  backupUrl?: string;
++  mainUrl: string
++  backupUrl?: string
+   /** 签名过期时间（秒级时间戳），过期后 URL 失效需重取 */
+-  expireTime?: number;
++  expireTime?: number
+ }
+ interface VideoResource {
+-  tkey: string;
+-  skey: string;
+-  md5: string;
+-  width: number;
+-  height: number;
+-  checkPics: string[];
+-  poster?: ImageResource;
++  tkey: string
++  skey: string
++  md5: string
++  width: number
++  height: number
++  checkPics: string[]
++  poster?: ImageResource
+   /** 内置缩略图（WEBP base64 裸串，前缀 data:image/webp;base64, 即显；poster 签名 URL 过期时的兜底） */
+-  inlinePic?: string;
++  inlinePic?: string
+   /** 播放地址（事件下发前自动换取；过期后可 media.videoUrl(tkey) 重取） */
+-  url?: EncryptedVideoUrl;
++  url?: EncryptedVideoUrl
+ }
+ interface LinkCard {
+-  url: string;
+-  title?: string;
+-  description?: string;
+-  coverUrl?: string;
++  url: string
++  title?: string
++  description?: string
++  coverUrl?: string
+ }
+ interface UserCard {
+-  uid: string;
+-  secUid?: string;
+-  name?: string;
+-  avatarUrl?: string;
+-  desc?: string;
+-  followerCount?: string;
+-  coverItems?: string[];
+-  coverUrls?: string[];
++  uid: string
++  secUid?: string
++  name?: string
++  avatarUrl?: string
++  desc?: string
++  followerCount?: string
++  coverItems?: string[]
++  coverUrls?: string[]
+ }
+ /** 群聊邀请卡载荷（messageType=58 / aweme_invite_card）：向某会话发送「邀请加入某群」卡片 */
+ interface GroupCard {
+   /** 被邀请群 id（conversation_id 与 conversation_short_id 同值下发） */
+-  conversationId: string;
++  conversationId: string
+   /** 群名（group_name，title/desc 展示文案内嵌） */
+-  groupName: string;
++  groupName: string
+   /** 群图标 URL（group_icon.url_list 首位；缺省卡片无图） */
+-  iconUrl?: string;
++  iconUrl?: string
+   /** 群成员数（group_member_count） */
+-  memberCount?: number;
++  memberCount?: number
+   /** 群主 uid（group_owner_uid） */
+-  ownerUid?: string;
++  ownerUid?: string
+   /** 群主 sec uid（sec_group_owner_uid） */
+-  ownerSecUid?: string;
++  ownerSecUid?: string
+   /** 群主昵称（group_owner_nickname，缺省空） */
+-  ownerNickname?: string;
++  ownerNickname?: string
+   /** 邀请人 uid（from_uid；缺省用发送者自身） */
+-  fromUid?: string;
++  fromUid?: string
+   /** 邀请人 sec uid（sec_from_uid），缺省省略 */
+-  fromSecUid?: string;
++  fromSecUid?: string
+   /** 邀请人昵称（title/desc 文案；缺省用 uid） */
+-  fromNickname?: string;
++  fromNickname?: string
+ }
+ /** 位置消息载荷（messageType=502 POI 定位）：坐标 + 地点信息 + 封面图 */
+ interface LocationCard {
+   /** 地点名（poi_name，text 展示） */
+-  name: string;
++  name: string
+   /** 详细地址（poi_address） */
+-  address: string;
++  address: string
+   /** 纬度 */
+-  latitude: number;
++  latitude: number
+   /** 经度 */
+-  longitude: number;
++  longitude: number
+   /** 模板 POI id（poi_id） */
+-  poiId?: string;
++  poiId?: string
+   /** 作品 POI id（aweme_poi_id） */
+-  awemePoiId?: string;
++  awemePoiId?: string
+   /** 封面资源路径（cover_info.resource_url.uri） */
+-  uri?: string;
++  uri?: string
+   /** 封面 URL 列表（cover_info.resource_url.url_list，发侧缺省用空数组） */
+-  urlList?: string[];
++  urlList?: string[]
+ }
+ interface FileAsset {
+-  uri: string;
+-  skey: string;
+-  md5: string;
+-  name: string;
+-  dataSize: number;
++  uri: string
++  skey: string
++  md5: string
++  name: string
++  dataSize: number
+ }
+-type ImageFormat = 'webp' | 'jpeg' | 'png' | 'gif' | 'heic' | 'unknown';
++type ImageFormat = 'webp' | 'jpeg' | 'png' | 'gif' | 'heic' | 'unknown'
+ //#endregion
+ //#region src/http/jar.d.ts
+ /** 精简 Cookie 会话:不区分 domain/path,整站共享一份键值对 */
+ declare class Jar {
+-  private readonly store;
+-  constructor(initial?: string);
+-  get(name: string): string | undefined;
+-  has(name: string): boolean;
+-  set(name: string, value: string): void;
+-  delete(name: string): void;
++  private readonly store
++  constructor (initial?: string)
++  get (name: string): string | undefined
++  has (name: string): boolean
++  set (name: string, value: string): void
++  delete (name: string): void
+   /** 导入 Cookie 请求头格式;响应 Set-Cookie 走 absorb 以支持过期删除 */
+-  merge(raw: string): void;
+-  header(): string;
++  merge (raw: string): void
++  header (): string
+   /** 接受独立或合并的 Set-Cookie 字段(容忍 Expires 中的逗号),max-age<=0 或已过期则删除 */
+-  absorb(raw: string, now?: number): void;
++  absorb (raw: string, now?: number): void
+ }
+ //#endregion
+ //#region src/http/res.d.ts
+ /** 统一响应形态:data 与 text 并存,JSON/HTML/protobuf 调用方按需取用 */
+ interface Res<T = unknown> {
+-  ok: boolean;
+-  status: number;
+-  headers: Headers;
+-  data: T;
+-  text: string;
++  ok: boolean
++  status: number
++  headers: Headers
++  data: T
++  text: string
+ }
+ //#endregion
+ //#region src/log.d.ts
+@@ -177,203 +177,203 @@ interface Res<T = unknown> {
+  * 调用方可注入同形态实现替换(静默、落盘、上报等)。
+  */
+ interface Log {
+-  info(msg: string): void;
+-  warn(msg: string): void;
+-  error(msg: string): void;
++  info (msg: string): void
++  warn (msg: string): void
++  error (msg: string): void
+ }
+ /** quiet 用于调用方整体关停输出;tag 用于多实例区分来源 */
+-declare function createLog(opts?: {
+-  tag?: string;
+-  quiet?: boolean;
+-}): Log;
++declare function createLog (opts?: {
++  tag?: string
++  quiet?: boolean
++}): Log
+ //#endregion
+ //#region src/http/client.d.ts
+ interface HttpOpts {
+   /** 浏览器复制的 Cookie 或上一轮会话 */
+-  cookie?: string;
++  cookie?: string
+   /** 当前账号 uid,发消息/收件箱/上传链路使用 */
+-  userId?: string;
+-  userAgent?: string;
++  userId?: string
++  userAgent?: string
+   /** 默认请求超时毫秒;init.signal 显式传入时优先生效 */
+-  timeout?: number;
+-  log?: Log;
++  timeout?: number
++  log?: Log
+ }
+ /** 抖音 HTTP 通道:Cookie/UA/超时封装 + Passport 请求头;签名(sign/qs/a_bogus)由调用方组装进 URL 后直发 */
+ declare class Http {
+-  readonly jar: Jar;
+-  readonly userId: string;
+-  readonly ua: string;
+-  readonly log: Log;
+-  bizTraceId: string;
++  readonly jar: Jar
++  readonly userId: string
++  readonly ua: string
++  readonly log: Log
++  bizTraceId: string
+   /** 服务端注册的桌面设备身份(登录时注入;'0' 表示未注册) */
+-  deviceId: string;
+-  installId: string;
+-  guid: string;
+-  private readonly timeout;
+-  private readonly portrait;
+-  constructor(opts?: HttpOpts);
++  deviceId: string
++  installId: string
++  guid: string
++  private readonly timeout
++  private readonly portrait
++  constructor (opts?: HttpOpts)
+   /** 注入服务端注册的桌面设备身份(device_register 签发) */
+-  setDevice(device: {
+-    deviceId: string;
+-    installId: string;
+-    guid: string;
+-  }): void;
+-  hasDevice(): boolean;
++  setDevice (device: {
++    deviceId: string
++    installId: string
++    guid: string
++  }): void
++  hasDevice (): boolean
+   /** Passport 接口请求头;imdesktop(桌面)与 creator(web)分流 */
+-  passportHeaders(url?: string): Record<string, string>;
+-  private aidSignFor;
+-  request(url: string, init?: RequestInit): Promise<Res<string>>;
+-  json<T>(url: string, init?: RequestInit): Promise<Res<T>>;
+-  bytes(url: string, init?: RequestInit): Promise<{
+-    ok: boolean;
+-    status: number;
+-    headers: Headers;
+-    data: Uint8Array;
+-  }>;
+-  get(url: string, init?: RequestInit): Promise<Res<string>>;
++  passportHeaders (url?: string): Record<string, string>
++  private aidSignFor
++  request (url: string, init?: RequestInit): Promise<Res<string>>
++  json<T> (url: string, init?: RequestInit): Promise<Res<T>>
++  bytes (url: string, init?: RequestInit): Promise<{
++    ok: boolean
++    status: number
++    headers: Headers
++    data: Uint8Array
++  }>
++  get (url: string, init?: RequestInit): Promise<Res<string>>
+   /** Passport form 链路:body 为已编码的 urlencoded 串,默认补 Content-Type */
+-  post(url: string, body?: string, init?: RequestInit): Promise<Res<string>>;
++  post (url: string, body?: string, init?: RequestInit): Promise<Res<string>>
+   /** 媒体上传:body 原样透传,Content-Type 由调用方决定 */
+-  upload(url: string, body: NonNullable<RequestInit['body']>, init?: RequestInit): Promise<Res<string>>;
+-  private fetchRes;
++  upload (url: string, body: NonNullable<RequestInit['body']>, init?: RequestInit): Promise<Res<string>>
++  private fetchRes
+   /** 吸收响应下发的 Set-Cookie 与 msToken,会话跨请求自续 */
+-  private absorb;
++  private absorb
+ }
+ //#endregion
+ //#region src/im/upload.d.ts
+ interface FileUploadAsset {
+-  uri: string;
+-  skey: string;
+-  md5: string;
+-  name: string;
+-  dataSize: number;
++  uri: string
++  skey: string
++  md5: string
++  name: string
++  dataSize: number
+ }
+ //#endregion
+ //#region src/im/types.d.ts
+ interface ConversationMember {
+-  uid: string;
+-  secUid?: string;
+-  role: number;
++  uid: string
++  secUid?: string
++  role: number
+ }
+ /** cmd 2006 返回的会话；纯数字 ID 且 type=2 的条目为群聊。 */
+ interface GroupInfo {
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: number;
+-  isGroup: boolean;
+-  name: string;
+-  avatar?: string;
+-  ownerUid?: string;
+-  lastMessageTime: number;
+-  members: ConversationMember[];
++  conversationId: string
++  conversationShortId: string
++  conversationType: number
++  isGroup: boolean
++  name: string
++  avatar?: string
++  ownerUid?: string
++  lastMessageTime: number
++  members: ConversationMember[]
+ }
+ interface ChatMessage {
+-  msgId: string;
+-  threadId: string;
+-  senderUid: string;
+-  senderSecUid?: string;
+-  content: string;
+-  msgType: number;
+-  createTime: number;
+-  status: number;
+-  indexInConversation?: string;
+-  indexInConversationV2?: string;
+-  [key: string]: unknown;
++  msgId: string
++  threadId: string
++  senderUid: string
++  senderSecUid?: string
++  content: string
++  msgType: number
++  createTime: number
++  status: number
++  indexInConversation?: string
++  indexInConversationV2?: string
++  [key: string]: unknown
+ }
+ /** 好友（P2P 会话对端）信息 */
+ interface FriendInfo {
+-  uid: string;
+-  secUid?: string;
+-  nickname: string;
+-  conversationId: string;
+-  conversationShortId: string;
+-  lastMessage?: ChatMessage;
+-  lastMessageTime: number;
+-  unreadCount: number;
++  uid: string
++  secUid?: string
++  nickname: string
++  conversationId: string
++  conversationShortId: string
++  lastMessage?: ChatMessage
++  lastMessageTime: number
++  unreadCount: number
+ }
+ /** 陌生人会话信息 */
+ interface StrangerInfo {
+-  uid: string;
+-  nickname?: string;
+-  conversationId: string;
+-  conversationShortId: string;
+-  lastMessage?: ChatMessage;
+-  lastMessageTime: number;
+-  unreadCount: number;
++  uid: string
++  nickname?: string
++  conversationId: string
++  conversationShortId: string
++  lastMessage?: ChatMessage
++  lastMessageTime: number
++  unreadCount: number
+ }
+ /** 会话寻址（发送/撤回等共用）；type=50 为盖楼：conversationId 即 threadId 全串 */
+ interface ConversationAddress {
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: 1 | 2 | 50;
+-  inboxType?: number;
++  conversationId: string
++  conversationShortId: string
++  conversationType: 1 | 2 | 50
++  inboxType?: number
+ }
+ /** 作品分享卡片入参（messageType=8 / aweType=800）；itemId 与 uid 须对应真实作品，其余字段可选 */
+ interface ShareItem {
+   /** 作品 id（itemId），服务端可能校验存在性 */
+-  itemId: string;
++  itemId: string
+   /** 作者数字 uid */
+-  uid: string;
++  uid: string
+   /** 作者 sec uid（缺省不渲染作者头像/主页跳转） */
+-  secUid?: string;
++  secUid?: string
+   /** 作品标题（content_title），缺省用 itemId */
+-  title?: string;
++  title?: string
+   /** 作者昵称（content_name） */
+-  authorName?: string;
++  authorName?: string
+   /** 封面 URL（缺省卡片无封面图） */
+-  coverUrl?: string;
++  coverUrl?: string
+ }
+ /** 消息表情回应（cmd=705 set_property，key=se:<emoji>） */
+ interface ModifyReactionItem extends ConversationAddress {
+-  serverMessageId: string;
++  serverMessageId: string
+   /** 抖音表态键值（skey 文本表情，如 '[爱心]'） */
+-  emoji: string;
++  emoji: string
+   /** 表态者 uid（bot 自身） */
+-  operatorUid: string;
++  operatorUid: string
+   /** true 添加 / false 移除 */
+-  enabled: boolean;
++  enabled: boolean
+ }
+ interface SendMessageResponse {
+-  statusCode: number;
+-  statusMsg: string;
+-  serverMessageId?: string;
+-  clientMessageId?: string;
++  statusCode: number
++  statusMsg: string
++  serverMessageId?: string
++  clientMessageId?: string
+   /** 内容安全审核状态码（0=通过，非0=被拦截/需审核） */
+-  checkCode?: number;
++  checkCode?: number
+ }
+ interface RecallItem extends ConversationAddress {
+-  serverMessageId: string;
++  serverMessageId: string
+ }
+ /** 会话标记已读（cmd=2002 mark_conversation_read，对齐 native rawMarkConversationRead） */
+ interface MarkReadItem extends ConversationAddress {
+   /** 已读位置：read_message_index（proto field 4，取消息 createTime 微秒时间戳） */
+-  readMessageIndex?: string;
++  readMessageIndex?: string
+   /** 已读位置 v2（read_message_index_v2，proto field 7，可选） */
+-  readMessageIndexV2?: string;
++  readMessageIndexV2?: string
+   /** 已读的消息 id（server_message_id，proto field 10，可选） */
+-  serverMessageId?: string;
++  serverMessageId?: string
+ }
+ interface RecallResult {
+-  statusCode: number;
+-  statusMsg: string;
+-  recalled: boolean;
++  statusCode: number
++  statusMsg: string
++  recalled: boolean
+ }
+ interface ActionResult {
+-  statusCode: number;
+-  statusMsg: string;
+-  checkCode?: number;
++  statusCode: number
++  statusMsg: string
++  checkCode?: number
+ }
+ interface GroupMemberInfo {
+-  uid: string;
+-  secUid?: string;
+-  nickname?: string;
+-  avatar?: string;
+-  role: number;
+-  alias?: string;
+-  sortOrder?: string;
+-  blocked?: number;
+-  leftBlockTime?: string;
+-  ext?: Readonly<Record<string, string>>;
++  uid: string
++  secUid?: string
++  nickname?: string
++  avatar?: string
++  role: number
++  alias?: string
++  sortOrder?: string
++  blocked?: number
++  leftBlockTime?: string
++  ext?: Readonly<Record<string, string>>
+ }
+ declare enum GroupJoinRequestStatus {
+   PENDING = 1,
+@@ -382,21 +382,21 @@ declare enum GroupJoinRequestStatus {
+   INVALID = 4
+ }
+ interface GroupJoinRequestInfo {
+-  requestId: string;
+-  applicantUid: string;
+-  applicantSecUid?: string;
+-  applicantNickname?: string;
+-  applicantAvatar?: string;
+-  groupShortId: string;
+-  conversationType: number;
+-  status: GroupJoinRequestStatus;
+-  reason?: string;
+-  inviterUid?: string;
+-  inviterSecUid?: string;
+-  createdAt?: string;
+-  modifiedAt?: string;
+-  moderatorUid?: string;
+-  ext?: Readonly<Record<string, string>>;
++  requestId: string
++  applicantUid: string
++  applicantSecUid?: string
++  applicantNickname?: string
++  applicantAvatar?: string
++  groupShortId: string
++  conversationType: number
++  status: GroupJoinRequestStatus
++  reason?: string
++  inviterUid?: string
++  inviterSecUid?: string
++  createdAt?: string
++  modifiedAt?: string
++  moderatorUid?: string
++  ext?: Readonly<Record<string, string>>
+ }
+ declare enum FriendRequestStatus {
+   PENDING = 1,
+@@ -405,334 +405,334 @@ declare enum FriendRequestStatus {
+   INVALID = 4
+ }
+ interface FriendRequestInfo {
+-  applicantUid: string;
+-  nickname?: string;
+-  avatar?: string;
+-  requestedAt?: string;
+-  status: FriendRequestStatus;
+-  message?: string;
+-  ext?: Readonly<Record<string, string>>;
++  applicantUid: string
++  nickname?: string
++  avatar?: string
++  requestedAt?: string
++  status: FriendRequestStatus
++  message?: string
++  ext?: Readonly<Record<string, string>>
+ }
+ /** 被引用消息（回复）信息：同 cmd=100 refMsgInfo 字段结构 */
+ interface MessageReference {
+-  referencedMessageId: string;
+-  hint: string;
+-  rootMessageId?: string;
++  referencedMessageId: string
++  hint: string
++  rootMessageId?: string
+ }
+ /** WS 原始推送（解析前中间结构，等价参考 ImPushMessage） */
+ interface PushMessage {
+-  cmd: number;
+-  inboxType?: number;
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: number;
+-  senderUid: string;
+-  senderSecUid?: string;
+-  content: string;
+-  messageType: number;
+-  serverMessageId?: string;
+-  createTime?: string;
+-  indexInConversation?: string;
+-  indexInConversationV2?: string;
+-  reference?: MessageReference;
++  cmd: number
++  inboxType?: number
++  conversationId: string
++  conversationShortId: string
++  conversationType: number
++  senderUid: string
++  senderSecUid?: string
++  content: string
++  messageType: number
++  serverMessageId?: string
++  createTime?: string
++  indexInConversation?: string
++  indexInConversationV2?: string
++  reference?: MessageReference
+   /** 盖楼层 id（serverMessageId:clientMessageId:convShortId）；楼内消息均有 */
+-  threadId?: string;
++  threadId?: string
+   /** 盖楼短 id */
+-  threadShortId?: string;
++  threadShortId?: string
+   /** 盖楼根消息（messageType=50002、正文为空），楼内回复为普通文本消息 */
+-  isThreadRoot?: boolean;
++  isThreadRoot?: boolean
+   /** 消息编辑次数（ext s:edit_count）；编辑重推后 ≥1 */
+-  editCount?: number;
++  editCount?: number
+   /** 消息编辑元数据（ext s:edit_info，content_editor 为 19 位 uid 已保精度） */
+   editInfo?: {
+-    contentIsEdited: boolean;
+-    editorUid: string;
+-    editTime: string;
+-  };
++    contentIsEdited: boolean
++    editorUid: string
++    editTime: string
++  }
+   /** 编辑前原始消息类型（ext s:org_msg_type；编辑重推时 messageType 可能变化，如根消息 org=7 而 messageType=50002） */
+-  orgMsgType?: number;
++  orgMsgType?: number
+   /** f:9 key-values（s:xxx / a:xxx 上下文键；撤回帧的 target_server_message_id 等在此，content 常为空） */
+-  ext?: Readonly<Record<string, string>>;
+-  raw: Record<string, unknown>;
++  ext?: Readonly<Record<string, string>>
++  raw: Record<string, unknown>
+ }
+ /** 入站业务消息：原始推送 + 收侧平铺消息体（type 判别，text 一律可读；媒体恒为资产形态，替代段数组） */
+-type InboundMessage = PushMessage & RecvBody;
++type InboundMessage = PushMessage & RecvBody
+ type GroupMemberIncreaseSource = 'invite' | 'command' | 'qrcode' | 'duoshan' | 'apply' | 'search' | 'activity' | 'face-to-face' | 'circle' |
+-/** 被移出成员重新入群（50011 unblock diff 通道） */
+-'rejoin';
+-type GroupMemberDecreaseSource = 'kick' | 'leave';
++  /** 被移出成员重新入群（50011 unblock diff 通道） */
++  'rejoin'
++type GroupMemberDecreaseSource = 'kick' | 'leave'
+ interface NoticeUser {
+-  uid: string;
+-  secUid?: string;
+-  nickname?: string;
++  uid: string
++  secUid?: string
++  nickname?: string
+ }
+ /** 语音/视频来电（messageType=50018 响铃信令，cmd=500 推送）。主叫=推送发送者；callInfo 含服务端 RTC 入会参数（individual.live_core_param 等）。
+  * 区分语音/视频看 cameraOff：0=视频（开摄像头）、1=语音；voipType 恒为 1（1v1 通话形态，非媒体类型） */
+ interface VoipCallEvent {
+-  type: 'voip.call';
+-  conversationId: string;
+-  conversationType: number;
+-  callerUid: string;
+-  callId: string;
+-  roomId: string;
++  type: 'voip.call'
++  conversationId: string
++  conversationType: number
++  callerUid: string
++  callId: string
++  roomId: string
+   /** 1v1 通话形态（实测恒为 1）；媒体类型看 cameraOff */
+-  voipType: number;
+-  callType: number;
++  voipType: number
++  callType: number
+   /** 0=视频通话 / 1=语音通话（发起时摄像头策略，实测为语音视频区分依据） */
+-  cameraOff: number;
++  cameraOff: number
+   /** 原始 call_info（participants/individual/init_state 等全量字段） */
+-  callInfo: Record<string, unknown>;
++  callInfo: Record<string, unknown>
+ }
+ /** 单聊已读回执（messageType=50013，cmd=504 推送；发送者视角显示为本机，读方取自 content.P2PSender） */
+ interface ReadEvent {
+-  type: 'read';
+-  conversationId: string;
++  type: 'read'
++  conversationId: string
+   /** 已读方 uid */
+-  readerUid: string;
++  readerUid: string
+   /** 会话短 id */
+-  conShortId: string;
++  conShortId: string
+   /** 最新被读消息 id */
+-  messageId: string;
++  messageId: string
+   /** 已读方游标 */
+-  readIndex: string;
++  readIndex: string
+ }
+ /** 会话属性变更项（content.ext_data[i]；如 a:chat_theme 更换背景） */
+ interface StatusExtItem {
+-  key: string;
+-  value: string;
+-  version: number;
+-  opType: number;
++  key: string
++  value: string
++  version: number
++  opType: number
+ }
+ /** 群成员资料变更明细（content.updated_participant_info[i]；role 0 普通 / 1 群主 / 2 管理员） */
+ interface GroupMemberUpdate {
+-  uid: string;
+-  role: number;
+-  secUid?: string;
++  uid: string
++  role: number
++  secUid?: string
+   /** 群内昵称（未设缺省） */
+-  alias?: string;
++  alias?: string
+ }
+ /** 群成员变更（command_type=7）：增删成员与角色/群主变更 */
+ interface GroupMemberChange {
+   /** 新增成员 uid（added_participant） */
+-  added: string[];
++  added: string[]
+   /** 移除成员 uid（removed_participant） */
+-  removed: string[];
++  removed: string[]
+   /** 角色/群昵称等资料变更明细（modified_participant 对应 updated_participant_info） */
+-  updated: GroupMemberUpdate[];
++  updated: GroupMemberUpdate[]
+   /** 变更前群主 uid（old_owner_id；仅群主变更帧带且非 0） */
+-  oldOwnerId?: string;
++  oldOwnerId?: string
+   /** 变更后群主 uid（new_owner_id；仅群主变更帧带且非 0） */
+-  newOwnerId?: string;
++  newOwnerId?: string
+ }
+ /**
+  * 会话状态变更（messageType=50001，高频，自发也下发）。command_type 实测取值：
+  * 1/14 红点计数与已读游标同步、2 消息删除（message_id 指向被删消息）、6 会话属性变更（nameChange/avatarChange/ext_data 带具体属性）、7 群成员变更（memberChange）。
+  */
+ interface StatusEvent {
+-  type: 'status';
+-  conversationId: string;
+-  conversationType: number;
+-  commandType: number;
++  type: 'status'
++  conversationId: string
++  conversationType: number
++  commandType: number
+   /** 未读计数；仅红点同步类（command_type=1/14）携带，删除/属性变更等缺省无 */
+-  unread?: number;
++  unread?: number
+   /** 已读游标 */
+-  readIndex: string;
++  readIndex: string
+   /** 被删消息 id（command_type=2 携带，ext 字符串无损；content.message_id 为 JS 精度丢失版） */
+-  messageId?: string;
++  messageId?: string
+   /** 群名变更（command_type=6 且 ext_data 含 a:s_name_operator / a:group_name_lifecycle-event=name_change）；name 为新群名，operatorUid 来自 a:s_name_operator（缺省空） */
+   nameChange?: {
+-    name: string;
+-    operatorUid: string;
+-  };
++    name: string
++    operatorUid: string
++  }
+   /** 群头像变更（command_type=6 且 ext_data 含 a:group_avatar_user_set / s_user_set_avatar / a:ab_avatar）；icon 为新头像 URL，operatorUid 来自前者（ab_avatar 帧缺省空） */
+   avatarChange?: {
+-    icon: string;
+-    operatorUid: string;
+-  };
++    icon: string
++    operatorUid: string
++  }
+   /** 群成员变更（command_type=7）：增删成员/角色变更/群主变更 */
+-  memberChange?: GroupMemberChange;
++  memberChange?: GroupMemberChange
+   /** 会话属性变更（command_type=6 时带；如 a:chat_theme） */
+-  extData?: StatusExtItem[];
++  extData?: StatusExtItem[]
+   /** 原始 content（conversation_id/read_index_v2/inbox_type 等全量字段） */
+-  raw: Record<string, unknown>;
++  raw: Record<string, unknown>
+ }
+ /** 业务通知事件（撤回/好友增减/群成员增减/已读等；好友与入群申请分流到 RequestEvent） */
+ type NoticeEvent = {
+   /** cmd=500 f500 property 推送的消息表情回应（ModifyPropertyBody 下发）。 */
+-  type: 'message.reaction';
+-  conversationId: string;
+-  serverMessageId: string;
++  type: 'message.reaction'
++  conversationId: string
++  serverMessageId: string
+   /** 抖音表态键值（se: 后文本，如 '[爱心]'） */
+-  emoji: string;
++  emoji: string
+   /** 表态者 uid（idempotent_id） */
+-  operatorUid: string;
++  operatorUid: string
+   /** true 添加 / false 移除 */
+-  isSet: boolean;
+-  raw: Record<string, unknown>;
++  isSet: boolean
++  raw: Record<string, unknown>
+ } | {
+   /** cmd508 的好友关系建立事实。 */
+-  type: 'friend.increase';
+-  peerUid: string;
+-  fromUid?: string;
+-  toUid?: string;
+-  content?: string;
+-  ext?: Readonly<Record<string, string>>;
+-  raw: Record<string, unknown>;
++  type: 'friend.increase'
++  peerUid: string
++  fromUid?: string
++  toUid?: string
++  content?: string
++  ext?: Readonly<Record<string, string>>
++  raw: Record<string, unknown>
+ } | {
+   /** cmd508 的好友关系解除事实。 */
+-  type: 'friend.decrease';
+-  peerUid: string;
+-  fromUid?: string;
+-  toUid?: string;
+-  content?: string;
+-  ext?: Readonly<Record<string, string>>;
+-  raw: Record<string, unknown>;
++  type: 'friend.decrease'
++  peerUid: string
++  fromUid?: string
++  toUid?: string
++  content?: string
++  ext?: Readonly<Record<string, string>>
++  raw: Record<string, unknown>
+ } | {
+-  type: 'conversation.read';
+-  conversationId: string;
+-  conversationType: number;
+-  readMessageIndex: string;
+-  readMessageIndexV2: string;
+-  raw: Record<string, unknown>;
++  type: 'conversation.read'
++  conversationId: string
++  conversationType: number
++  readMessageIndex: string
++  readMessageIndexV2: string
++  raw: Record<string, unknown>
+ } | {
+   /** cmd504 NewP2PMessageNotify 的输入状态回推（客户端输入框有内容时周期上报）。 */
+-  type: 'conversation.typing';
+-  conversationId: string;
++  type: 'conversation.typing'
++  conversationId: string
+   /** 双人对话对端 uid */
+-  peerUid: string;
+-  peerSecUid?: string;
++  peerUid: string
++  peerSecUid?: string
+   /** 正在输入的成员 uid */
+-  senderUid: string;
++  senderUid: string
+   /** true 正在输入 / false 已停止 */
+-  typing: boolean;
+-  raw: Record<string, unknown>;
++  typing: boolean
++  raw: Record<string, unknown>
+ } | {
+-  type: 'conversation.update';
+-  conversationId: string;
+-  conversationType: number;
+-  raw: Record<string, unknown>;
++  type: 'conversation.update'
++  conversationId: string
++  conversationType: number
++  raw: Record<string, unknown>
+ } | {
+-  type: 'conversation.delete';
+-  conversationId: string;
+-  conversationType: number;
+-  raw: Record<string, unknown>;
++  type: 'conversation.delete'
++  conversationId: string
++  conversationType: number
++  raw: Record<string, unknown>
+ } | {
+-  type: 'message.recall';
+-  conversationId: string;
+-  conversationType: number;
++  type: 'message.recall'
++  conversationId: string
++  conversationType: number
+   /** 被撤回消息 id（ext s:target_server_message_id） */
+-  serverMessageId?: string;
++  serverMessageId?: string
+   /** 被撤回消息客户端 id（ext s:target_client_message_id） */
+-  targetClientMessageId?: string;
++  targetClientMessageId?: string
+   /** 撤回操作者 uid（ext s:recall_uid） */
+-  recallUid?: string;
++  recallUid?: string
+   /** 撤回者身份（ext s:recall_role，实测 1） */
+-  recallRole?: number;
++  recallRole?: number
+   /** 原始推送 ext（f:9 key-values，撤回辅助信息） */
+-  ext?: Readonly<Record<string, string>>;
+-  raw: Record<string, unknown>;
++  ext?: Readonly<Record<string, string>>
++  raw: Record<string, unknown>
+ } | {
+   /** 群系统消息中的成员加入事实；一条消息可以包含多个成员。 */
+-  type: 'group.member-increase';
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: 2;
+-  source: GroupMemberIncreaseSource;
+-  members: NoticeUser[];
+-  operators: NoticeUser[];
+-  raw: Record<string, unknown>;
++  type: 'group.member-increase'
++  conversationId: string
++  conversationShortId: string
++  conversationType: 2
++  source: GroupMemberIncreaseSource
++  members: NoticeUser[]
++  operators: NoticeUser[]
++  raw: Record<string, unknown>
+ } | {
+   /** 群系统消息中的成员离开事实；kick 的 passive_users 为离群成员，leave 的 active_users 为离群成员。 */
+-  type: 'group.member-decrease';
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: 2;
+-  source: GroupMemberDecreaseSource;
+-  members: NoticeUser[];
+-  operators: NoticeUser[];
+-  raw: Record<string, unknown>;
++  type: 'group.member-decrease'
++  conversationId: string
++  conversationShortId: string
++  conversationType: 2
++  source: GroupMemberDecreaseSource
++  members: NoticeUser[]
++  operators: NoticeUser[]
++  raw: Record<string, unknown>
+ } | {
+   /** messageType=7, aweType=100110；设为管理员。 */
+-  type: 'group.admin';
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: 2;
+-  members: NoticeUser[];
+-  operators: NoticeUser[];
+-  enabled: true;
+-  raw: Record<string, unknown>;
++  type: 'group.admin'
++  conversationId: string
++  conversationShortId: string
++  conversationType: 2
++  members: NoticeUser[]
++  operators: NoticeUser[]
++  enabled: true
++  raw: Record<string, unknown>
+ } | {
+   /** messageType=7, aweType=100106；name 取不到时仍保留通知和 raw。 */
+-  type: 'group.name-change';
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: 2;
+-  name?: string;
+-  operators: NoticeUser[];
+-  raw: Record<string, unknown>;
++  type: 'group.name-change'
++  conversationId: string
++  conversationShortId: string
++  conversationType: 2
++  name?: string
++  operators: NoticeUser[]
++  raw: Record<string, unknown>
+ } | {
+   /** messageType=7, aweType=100115；avatar 取不到时仍保留通知和 raw。 */
+-  type: 'group.avatar-change';
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: 2;
+-  avatar?: string;
+-  operators: NoticeUser[];
+-  raw: Record<string, unknown>;
++  type: 'group.avatar-change'
++  conversationId: string
++  conversationShortId: string
++  conversationType: 2
++  avatar?: string
++  operators: NoticeUser[]
++  raw: Record<string, unknown>
+ } | {
+-  type: 'im.command';
+-  conversationId: string;
+-  conversationType: number;
+-  messageType: number;
+-  content: string;
+-  raw: Record<string, unknown>;
+-};
++  type: 'im.command'
++  conversationId: string
++  conversationType: number
++  messageType: number
++  content: string
++  raw: Record<string, unknown>
++}
+ /** 需要上层处理的请求事件（好友申请 / 入群申请） */
+ type RequestEvent = {
+   /** cmd508 的 SendApply 信号；SDK 收到后刷新可处理的好友申请列表。 */
+-  type: 'friend.request';
+-  applicantUid: string;
+-  fromUid?: string;
+-  toUid?: string;
+-  content?: string;
+-  ext?: Readonly<Record<string, string>>;
+-  raw: Record<string, unknown>;
++  type: 'friend.request'
++  applicantUid: string
++  fromUid?: string
++  toUid?: string
++  content?: string
++  ext?: Readonly<Record<string, string>>
++  raw: Record<string, unknown>
+ } | {
+   /** cmd500 messageType=90001；SDK 收到后拉取审核列表再生成可操作 request。 */
+-  type: 'group.join-request';
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: number;
+-  requestId?: string;
+-  content: string;
+-  raw: Record<string, unknown>;
+-};
++  type: 'group.join-request'
++  conversationId: string
++  conversationShortId: string
++  conversationType: number
++  requestId?: string
++  content: string
++  raw: Record<string, unknown>
++}
+ /** 合并转发节点（messageType=136 list_content + msg_ids） */
+ interface ForwardNode {
+   /** 发送者 uid */
+-  uid: string;
++  uid: string
+   /** 发送者昵称 */
+-  nickname: string;
++  nickname: string
+   /** 节点文本摘要（图片为 [图片] 等） */
+-  text: string;
++  text: string
+   /** 节点消息类型（7 文本 / 27 图片 …） */
+-  msgType: number;
++  msgType: number
+   /** 节点 aweType（700 文本 / 2702 图片 …） */
+-  aweType: number;
++  aweType: number
+   /** 节点消息 id */
+-  msgId: string;
++  msgId: string
+   /** 发送者 secUid（如有） */
+-  secUid?: string;
++  secUid?: string
+   /** 节点发送时间 ms */
+-  createTime?: number;
++  createTime?: number
+ }
+ /** 文件发送项：source 简写（自动上传，name 缺省从来源推断）或预上传 asset（uploadFile 返回值与 FileAsset 同形） */
+ type FileSend = {
+-  source: MediaInput;
+-  name?: string;
++  source: MediaInput
++  name?: string
+ } | {
+-  asset: FileAsset;
+-};
++  asset: FileAsset
++}
+ /**
+  * 消息统一结构基：type 判别类型，载荷字段平铺，收/发同构。
+  * 仅媒体载荷按方向收窄（S='send' 可给输入源由 send 自动上传；S='recv' 恒为资产/资源形态可直接回传）。
+@@ -740,550 +740,550 @@ type FileSend = {
+  */
+ /** 接龙条目录入项（chains_entry_list[i]：e_c_u=提交者 uid、e_t=文本） */
+ interface ChainsEntry {
+-  uid: string;
+-  text: string;
++  uid: string
++  text: string
+ }
+ /** 接龙消息（messageType=152，aweType=15200）：push_detail 即官方客户端展示文本 */
+ interface Chains {
+-  id: string;
+-  description: string;
+-  isStart: boolean;
+-  entries: ChainsEntry[];
++  id: string
++  description: string
++  isStart: boolean
++  entries: ChainsEntry[]
+ }
+ /** 互动卡消息（messageType=110，aweType=110402 打卡邀请等）：im_dynamic_patch 为卡片载荷 */
+ interface Card {
+   /** 卡片 key（patch.card_key，如 msg_guide / msg_preview） */
+-  key: string;
++  key: string
+   /** 服务端卡片类型（patch.card_type，如 douyin_admin_msg_guide_invite / douyin_admin_msg_preview_ugc） */
+-  type: string;
++  type: string
+   /** 卡片 id（patch.card_id；打卡卡 id 是嵌套 JSON 字符串，取内层 id） */
+-  id: string;
++  id: string
+   /** 原互动类型（content.aweType，如引导卡 110402 / 打卡记录卡 110372；回传恢复原值） */
+-  aweType: number;
++  aweType: number
+   /** 主文案（raw_data.content_middle_top / content_top 的 content） */
+-  title: string;
++  title: string
+   /** 附属文案（raw_data.content_middle_content / content_middle 的 content） */
+-  desc: string;
++  desc: string
+   /** 按钮文案（raw_data.bottom / bottom_right 的 content） */
+-  button: string;
++  button: string
+   /** 展示图片（raw_data.content_left / content_bottom 首位，url） */
+-  coverUrl: string;
++  coverUrl: string
+   /** 官方签名（patch.sign，下发时生成；回传发送原样回填） */
+-  sign: string;
++  sign: string
+   /** 完整互动载荷（patch 原对象，收/发同构直接复用） */
+-  patch: Record<string, unknown>;
++  patch: Record<string, unknown>
+ }
+ type RawBody<S extends 'send' | 'recv'> = {
+-  type: 'text';
+-  text: string;
++  type: 'text'
++  text: string
+   ats?: {
+-    uid: string;
+-    nickname?: string;
+-  }[];
++    uid: string
++    nickname?: string
++  }[]
+ } | {
+-  type: 'image';
+-  text?: string;
+-  image: S extends 'send' ? ImageResource | MediaInput : ImageResource;
++  type: 'image'
++  text?: string
++  image: S extends 'send' ? ImageResource | MediaInput : ImageResource
+ } | {
+-  type: 'video';
+-  text?: string;
+-  video: S extends 'send' ? VideoResource | VideoSend : VideoResource;
++  type: 'video'
++  text?: string
++  video: S extends 'send' ? VideoResource | VideoSend : VideoResource
+ } | {
+-  type: 'file';
+-  text?: string;
+-  file: S extends 'send' ? FileAsset | FileSend : FileAsset;
++  type: 'file'
++  text?: string
++  file: S extends 'send' ? FileAsset | FileSend : FileAsset
+ } | {
+-  type: 'share';
+-  text?: string;
+-  share: ShareItem;
++  type: 'share'
++  text?: string
++  share: ShareItem
+ } | {
+-  type: 'userCard';
+-  text?: string;
+-  user: UserCard;
++  type: 'userCard'
++  text?: string
++  user: UserCard
+ } | {
+-  type: 'forward';
+-  text?: string;
+-  nodes: ForwardNode[];
++  type: 'forward'
++  text?: string
++  nodes: ForwardNode[]
+ } | {
+-  type: 'audio';
+-  text?: string;
++  type: 'audio'
++  text?: string
+   audio: {
+-    urls: string[];
+-    uri: string;
+-  };
++    urls: string[]
++    uri: string
++  }
+ } | {
+-  type: 'emoji';
+-  text?: string;
+-  emoji: string;
++  type: 'emoji'
++  text?: string
++  emoji: string
+ } | {
+-  type: 'link';
+-  text?: string;
+-  link: LinkCard;
++  type: 'link'
++  text?: string
++  link: LinkCard
+ } | {
+-  type: 'chains';
+-  text?: string;
+-  chains: Chains;
++  type: 'chains'
++  text?: string
++  chains: Chains
+ } | {
+-  type: 'card';
+-  text?: string;
+-  card: Card;
++  type: 'card'
++  text?: string
++  card: Card
+ } | {
+-  type: 'groupCard';
+-  text?: string;
+-  groupCard: GroupCard;
++  type: 'groupCard'
++  text?: string
++  groupCard: GroupCard
+ } | {
+-  type: 'location';
+-  text?: string;
+-  location: LocationCard;
++  type: 'location'
++  text?: string
++  location: LocationCard
+ } | {
+-  type: 'unknown';
+-  text?: string;
+-  raw: Record<string, unknown> | string;
+-};
++  type: 'unknown'
++  text?: string
++  raw: Record<string, unknown> | string
++}
+ /** 发侧消息体：统一走 bot.msg.send(chatId, body)，媒体可给输入源（send 自动上传） */
+-type MsgBody = RawBody<'send'>;
++type MsgBody = RawBody<'send'>
+ /** 收侧消息体：媒体恒为资产/资源形态，与 MsgBody 同构，可直接回传 send */
+-type RecvBody = RawBody<'recv'>;
++type RecvBody = RawBody<'recv'>
+ //#endregion
+ //#region src/im/inbox.d.ts
+ interface InboxListOptions {
+-  cursor?: number;
+-  count?: number;
++  cursor?: number
++  count?: number
+ }
+ interface ConversationSettingInput {
+-  setStickOnTop?: boolean;
+-  setMute?: boolean;
+-  setFavorite?: boolean;
++  setStickOnTop?: boolean
++  setMute?: boolean
++  setFavorite?: boolean
+ }
+ interface CreateGroupOptions {
+   /** 参与成员 uid（含创建者本人） */
+-  participantUids: string[];
+-  name?: string;
+-  description?: string;
++  participantUids: string[]
++  name?: string
++  description?: string
+ }
+ //#endregion
+ //#region src/im/content.d.ts
+ /** 文本 @ 提及（richTextInfos 元数据；收侧无昵称，text 为发侧可选） */
+ interface TextMention {
+-  uid: string;
++  uid: string
+   /** 会话 id（官方 info.con_id，@ 归属会话） */
+-  conId?: string;
+-  text?: string;
+-  location: number;
+-  length: number;
++  conId?: string
++  text?: string
++  location: number
++  length: number
+ }
+ //#endregion
+ //#region src/im/send.d.ts
+ interface VoiceCallResult {
+   /** call 阶段 VoipInfo.channel_id / create 失败的 channel_id */
+-  channelId?: string;
++  channelId?: string
+   /** VoipStatus */
+-  status?: number;
++  status?: number
+   /** CallVoipResponseBody.check_code */
+-  checkCode?: string;
++  checkCode?: string
+   /** CallVoipResponseBody.check_message */
+-  checkMessage?: string;
++  checkMessage?: string
+   /** create 阶段 VoipStatusCode（非 0 表示创建失败） */
+-  statusCode?: number;
++  statusCode?: number
+ }
+ interface SendForwardOptions extends ConversationAddress {
+-  nodes: ForwardNode[];
++  nodes: ForwardNode[]
+   /** 发送者 uid（bot 自身） */
+-  selfUid: string;
++  selfUid: string
+   /** 发送者 secUid（bot 自身） */
+-  selfSecUid?: string;
++  selfSecUid?: string
+   /** 复用原 cmid（同会话幂等去重兜底，编辑不支持）；缺省随机 */
+-  clientMessageId?: string;
++  clientMessageId?: string
+ }
+ interface SendShareOptions extends ConversationAddress {
+-  item: ShareItem;
++  item: ShareItem
+   /** 复用原 cmid（同会话幂等去重兜底，编辑不支持）；缺省随机 */
+-  clientMessageId?: string;
++  clientMessageId?: string
+ }
+ interface SendUserCardOptions extends ConversationAddress {
+-  user: UserCard;
++  user: UserCard
+   /** 复用原 cmid（同会话幂等去重兜底，编辑不支持）；缺省随机 */
+-  clientMessageId?: string;
++  clientMessageId?: string
+ }
+ interface ReplyOptions extends ConversationAddress {
+-  text: string;
+-  referencedMessageId: string;
+-  referencedMessageType: number;
+-  referencedUid: string;
+-  referencedSecUid?: string;
+-  nickname?: string;
+-  referencedText?: string;
+-  rootMessageId?: string;
+-  rootMessageConvIndex?: string;
++  text: string
++  referencedMessageId: string
++  referencedMessageType: number
++  referencedUid: string
++  referencedSecUid?: string
++  nickname?: string
++  referencedText?: string
++  rootMessageId?: string
++  rootMessageConvIndex?: string
+ }
+ //#endregion
+ //#region src/im/query.d.ts
+ /** 会话成员已读游标行 */
+ interface ReadIndexRow {
+-  uid: string;
++  uid: string
+   /** 已读游标（微秒时间戳量级） */
+-  readIndex: number;
+-  extra?: number;
++  readIndex: number
++  extra?: number
+ }
+ /** 会话成员最小同步游标行 */
+ interface MinIndexRow {
+-  uid: string;
+-  minIndex: number;
++  uid: string
++  minIndex: number
+ }
+ interface UserMessageQuery {
+   /** uid 消息区间（int64 字符串） */
+-  startIndex?: string;
+-  messageType?: string;
+-  endIndex?: string;
+-  cursor?: string;
+-  inboxType?: number;
++  startIndex?: string
++  messageType?: string
++  endIndex?: string
++  cursor?: string
++  inboxType?: number
+ }
+ interface ClientAckItem {
+-  serverMessageId: string;
+-  clientMessageId?: string;
+-  conversationShortId?: string;
++  serverMessageId: string
++  clientMessageId?: string
++  conversationShortId?: string
+   /** 消息类型过滤，缺省 500（到达/已读确认） */
+-  messageType?: number;
+-  status?: number;
+-  count?: number;
+-  inboxType?: number;
++  messageType?: number
++  status?: number
++  count?: number
++  inboxType?: number
+ }
+ interface StrangerListOptions {
+   /** 分页游标 */
+-  cursor?: number;
+-  source?: number;
+-  scene?: number;
+-  inboxType?: number;
++  cursor?: number
++  source?: number
++  scene?: number
++  inboxType?: number
+ }
+ interface GetPeerRequest {
+-  appId?: number;
+-  sid?: number;
+-  taskType?: number;
++  appId?: number
++  sid?: number
++  taskType?: number
+   /** 原始键透传（vid/cdn_url/file_type/sfid 等），对齐服务端字段 */
+-  fileInfo: Record<string, unknown>;
++  fileInfo: Record<string, unknown>
+ }
+ interface GetPeerResult {
+-  status: number;
+-  fid: string;
+-  traceId: string;
+-  reqId: string;
+-  token: string;
+-  nodes: unknown[];
+-  multiNodes?: unknown[] | null;
+-  indexNum: number;
+-  countryCode: number;
+-  ispCode: number;
++  status: number
++  fid: string
++  traceId: string
++  reqId: string
++  token: string
++  nodes: unknown[]
++  multiNodes?: unknown[] | null
++  indexNum: number
++  countryCode: number
++  ispCode: number
+ }
+ //#endregion
+ //#region src/im/users.d.ts
+ /** 用户公开资料（昵称/头像） */
+ interface UserProfile {
+-  nickname?: string;
+-  avatar?: string;
++  nickname?: string
++  avatar?: string
+ }
+ /** 用户详细资料（profileScene/profileOther 共用；未建模字段走 raw 透传） */
+ interface ProfileDetail {
+-  uid: string;
+-  secUid: string;
+-  nickname?: string;
+-  signature?: string;
+-  avatar?: string;
+-  uniqueId?: string;
+-  followingCount?: number;
+-  followerCount?: number;
+-  followStatus?: number;
+-  followerStatus?: number;
+-  raw: Record<string, unknown>;
++  uid: string
++  secUid: string
++  nickname?: string
++  signature?: string
++  avatar?: string
++  uniqueId?: string
++  followingCount?: number
++  followerCount?: number
++  followStatus?: number
++  followerStatus?: number
++  raw: Record<string, unknown>
+ }
+ //#endregion
+ //#region src/im/active.d.ts
+ /** 在线状态项（secUserId 维度） */
+ interface OnlineItem {
+-  secUserId: string;
++  secUserId: string
+   /** 最后活跃时间（秒时间戳），0 表示从未在线 */
+-  lastActiveTime: number;
++  lastActiveTime: number
+ }
+ /** 已读回执项（conv_short_id 透传原样，避免 int64 在 JSON 里丢精度） */
+ interface ReadSwitchItem {
+-  msgId: string;
+-  convId: string;
+-  convShortId: string | number;
+-  createTime: number;
+-  convType: number;
++  msgId: string
++  convId: string
++  convShortId: string | number
++  createTime: number
++  convType: number
+ }
+ //#endregion
+ //#region src/im/play.d.ts
+ /** 作品详情摘要（aweme 结构繁复，仅提取常用字段，其余透传 raw） */
+ interface AwemeDetail {
+-  awemeId: string;
+-  desc?: string;
+-  createTime?: number;
++  awemeId: string
++  desc?: string
++  createTime?: number
+   /** 播放地址列表（video.play_addr.url_list） */
+-  playUrls?: string[];
++  playUrls?: string[]
+   /** 封面地址列表（video.cover.url_list） */
+-  coverUrls?: string[];
++  coverUrls?: string[]
+   author?: {
+-    secUid?: string;
+-    nickname?: string;
+-    avatar?: string;
+-  };
+-  raw: Record<string, unknown>;
++    secUid?: string
++    nickname?: string
++    avatar?: string
++  }
++  raw: Record<string, unknown>
+ }
+ //#endregion
+ //#region src/im/emoji.d.ts
+ /** 官方表情资源（/aweme/v1/web/emoji/list/ 下发，id 为拼音资源名，name 与表态键值同源） */
+ interface EmojiInfo {
+   /** 资源 id（如 weixiao / jinli） */
+-  id: string;
++  id: string
+   /** 显示键值（如 [微笑]） */
+-  name: string;
++  name: string
+   /** TOS 资源路径 */
+-  uri: string;
++  uri: string
+   /** CDN 直链（带签名时效，过期后可用 uri 重新换链） */
+-  urls: string[];
++  urls: string[]
+ }
+ //#endregion
+ //#region src/im/resource.d.ts
+ /** 贴纸图片（static 静态 / animate 动图，抖音 GIF 表情即动图贴纸） */
+ interface StickerImage {
+-  width: number;
+-  height: number;
+-  uri: string;
+-  urls: string[];
++  width: number
++  height: number
++  uri: string
++  urls: string[]
+ }
+ /** 表情贴纸（收藏/自定义/官方面板通用结构） */
+ interface Sticker {
+   /** 贴纸 id（用 id_str 字符串，服务端 number 字段在 JS 中会丢精度） */
+-  id: string;
++  id: string
+   /** sticker_type：如 2=表情贴纸 */
+-  type: number;
++  type: number
+   /** 显示名（如 [微笑]，空串不返回） */
+-  name?: string;
+-  hash?: string;
++  name?: string
++  hash?: string
+   /** 来源标记（comment_emoji 等） */
+-  source?: string;
++  source?: string
+   /** 静态图 */
+-  static?: StickerImage;
++  static?: StickerImage
+   /** 动图（webp/gif 载体） */
+-  animate?: StickerImage;
++  animate?: StickerImage
+ }
+ /** 表情资源列表页（scenes 决定响应顶层键，统一收拢为此结构） */
+ interface StickerPage {
+-  list: Sticker[];
+-  total: number;
+-  cursor: number;
+-  done: boolean;
++  list: Sticker[]
++  total: number
++  cursor: number
++  done: boolean
+ }
+ /** 收藏操作结果：成功收藏/取消的贴纸 id */
+ interface StickerCollectResult {
+-  ids: string[];
++  ids: string[]
+ }
+ /** strategy/config:app 能力开关结果（决策树 + 动效资源包配置） */
+ interface StrategyConfig {
+-  decisionTrees?: Record<string, unknown>;
+-  interactiveResourceConfig?: Record<string, unknown>;
++  decisionTrees?: Record<string, unknown>
++  interactiveResourceConfig?: Record<string, unknown>
+ }
+ //#endregion
+ //#region src/im/im.d.ts
+ interface ImOptions {
+-  http: Http;
++  http: Http
+   /** 当前账号数字 uid（Android frontier device_id + 自发消息过滤） */
+-  userId: string;
++  userId: string
+   /** 浏览器复制的 Cookie 串（WS 握手用；HTTP 通道使用 http 实例内的 Cookie） */
+-  cookies: string;
++  cookies: string
+   /** Desktop IM 设备 ID（收件箱 Cookie 查询/动作通道用；缺省取 http 已注册设备） */
+-  deviceId?: string;
++  deviceId?: string
+   /** true 时自发消息也作为 message 事件下发（默认过滤） */
+-  selfMessage?: boolean;
+-  log?: Log;
++  selfMessage?: boolean
++  log?: Log
+ }
+ type ImEventMap = {
+-  message: [message: InboundMessage];
++  message: [message: InboundMessage]
+   /** 消息被编辑（编辑重推：内容为编辑后全文，ext 带 editCount/editInfo） */
+-  'message:edited': [message: InboundMessage];
+-  notice: [notice: NoticeEvent];
+-  request: [request: RequestEvent];
++  'message:edited': [message: InboundMessage]
++  notice: [notice: NoticeEvent]
++  request: [request: RequestEvent]
+   /** 语音来电（messageType=50018；出站未支持，来电可感知） */
+-  voip: [event: VoipCallEvent];
++  voip: [event: VoipCallEvent]
+   /** 单聊已读回执（messageType=50013，发放于自发过滤之前） */
+-  read: [event: ReadEvent];
++  read: [event: ReadEvent]
+   /** 会话状态变更，高频（messageType=50001，发放于自发过滤之前） */
+-  status: [event: StatusEvent];
+-  reconnecting: [event: WsReconnectEvent];
+-  close: [event: WsCloseEvent];
+-};
+-type ImEvent = keyof ImEventMap;
+-type Listener<T extends ImEvent> = (...args: ImEventMap[T]) => void;
++  status: [event: StatusEvent]
++  reconnecting: [event: WsReconnectEvent]
++  close: [event: WsCloseEvent]
++}
++type ImEvent = keyof ImEventMap
++type Listener<T extends ImEvent> = (...args: ImEventMap[T]) => void
+ /**
+  * IM 消息业务门面：收消息走 Android Frontier WS 推送，
+  * 发消息统一 HTTP cookie 通道（native ImOption profile，cmd=100），
+  * HTTP 同时承担收件箱查询/动作与媒体上传。方法直接转发到各模块。
+  */
+ declare class Im {
+-  private readonly http;
+-  private readonly userId;
+-  private readonly deviceId;
+-  private readonly log;
+-  private readonly transport;
+-  private readonly uploader;
+-  private readonly inboxCtx;
++  private readonly http
++  private readonly userId
++  private readonly deviceId
++  private readonly log
++  private readonly transport
++  private readonly uploader
++  private readonly inboxCtx
+   /** Android Frontier 长连接：接收推送 */
+-  private readonly ws;
+-  private readonly handlers;
+-  private readonly opts;
+-  constructor(options: ImOptions);
++  private readonly ws
++  private readonly handlers
++  private readonly opts
++  constructor (options: ImOptions)
+   /** 连接 Android Frontier WS 长连接并开始接收群聊/私聊消息 */
+-  start(): Promise<void>;
++  start (): Promise<void>
+   /** 停止接收并关闭连接 */
+-  stop(): void;
++  stop (): void
+   /** 事件注册：message / notice / request / reconnecting / close（start 前注册同样生效） */
+-  on<T extends ImEvent>(event: T, callback: Listener<T>): void;
+-  off<T extends ImEvent>(event: T, callback: Listener<T>): void;
+-  private emit;
++  on<T extends ImEvent> (event: T, callback: Listener<T>): void
++  off<T extends ImEvent> (event: T, callback: Listener<T>): void
++  private emit
+   /** Android Frontier 帧分发：原生通知/请求 + 消息推送（过滤自发，命令消息分流为 notice/request） */
+-  private handleFrame;
++  private handleFrame
+   /** 分发层调试日志：打印每条原始推送（含被过滤的自发），诊断收不到事件用 */
+-  private debug;
++  private debug
+   /** 好友申请/入群申请走 request，其余通知走 notice */
+-  private routeEvent;
+-  sendText(address: ConversationAddress, text: string, mentions?: TextMention[]): Promise<SendMessageResponse>;
++  private routeEvent
++  sendText (address: ConversationAddress, text: string, mentions?: TextMention[]): Promise<SendMessageResponse>
+   /** 统一发送：type 判别一条消息（text/at 合 messageType=7，媒体/卡片各成一条），与收侧结构同构 */
+-  sendBody(address: ConversationAddress, body: MsgBody, opts?: {
+-    clientMessageId?: string;
+-  }): Promise<SendMessageResponse>;
++  sendBody (address: ConversationAddress, body: MsgBody, opts?: {
++    clientMessageId?: string
++  }): Promise<SendMessageResponse>
+   /** 上报输入状态（true 正在输入 / false 停止），对方端显示「正在输入…」 */
+-  sendTyping(address: ConversationAddress, typing: boolean): Promise<boolean>;
++  sendTyping (address: ConversationAddress, typing: boolean): Promise<boolean>
+   /** 发起语音通话：未支持（服务端无 VOIP 通道，返回 statusCode=-1） */
+-  callVoice(address: ConversationAddress, calleeUid: string): Promise<VoiceCallResult>;
++  callVoice (address: ConversationAddress, calleeUid: string): Promise<VoiceCallResult>
+   /** 合并转发（messageType=136） */
+-  sendMergeForward(options: SendForwardOptions): Promise<SendMessageResponse>;
++  sendMergeForward (options: SendForwardOptions): Promise<SendMessageResponse>
+   /** 发送作品分享卡片（messageType=8 / aweType=800） */
+-  sendShare(options: SendShareOptions): Promise<SendMessageResponse>;
++  sendShare (options: SendShareOptions): Promise<SendMessageResponse>
+   /** 发送用户名片卡片（messageType=25 / aweType=0） */
+-  sendUserCard(options: SendUserCardOptions): Promise<SendMessageResponse>;
+-  reply(options: ReplyOptions): Promise<SendMessageResponse>;
+-  recall(item: RecallItem): Promise<RecallResult>;
++  sendUserCard (options: SendUserCardOptions): Promise<SendMessageResponse>
++  reply (options: ReplyOptions): Promise<SendMessageResponse>
++  recall (item: RecallItem): Promise<RecallResult>
+   /** 消息表情回应（cmd=705 set_property，emoji 为抖音 skey 文本键） */
+-  modifyReaction(item: ModifyReactionItem): Promise<{
+-    statusCode: number;
+-    statusMsg: string;
+-  }>;
++  modifyReaction (item: ModifyReactionItem): Promise<{
++    statusCode: number
++    statusMsg: string
++  }>
+   /** 会话标记已读（cmd=2002 mark_conversation_read） */
+-  markRead(item: MarkReadItem): Promise<{
+-    statusCode: number;
+-    statusMsg: string;
+-  }>;
+-  uploadImage(data: Uint8Array): Promise<ImageAsset>;
+-  uploadVideo(data: Uint8Array): Promise<VideoAsset>;
+-  uploadFile(data: Uint8Array, name: string): Promise<FileUploadAsset>;
+-  getFriendList(options?: InboxListOptions): Promise<FriendInfo[]>;
+-  getGroupList(options?: InboxListOptions): Promise<GroupInfo[]>;
+-  getGroupMembers(address: ConversationAddress): Promise<GroupMemberInfo[]>;
+-  getStrangerList(): Promise<StrangerInfo[]>;
++  markRead (item: MarkReadItem): Promise<{
++    statusCode: number
++    statusMsg: string
++  }>
++  uploadImage (data: Uint8Array): Promise<ImageAsset>
++  uploadVideo (data: Uint8Array): Promise<VideoAsset>
++  uploadFile (data: Uint8Array, name: string): Promise<FileUploadAsset>
++  getFriendList (options?: InboxListOptions): Promise<FriendInfo[]>
++  getGroupList (options?: InboxListOptions): Promise<GroupInfo[]>
++  getGroupMembers (address: ConversationAddress): Promise<GroupMemberInfo[]>
++  getStrangerList (): Promise<StrangerInfo[]>
+   /** 批量查用户资料（昵称/头像），按 secUid 索引 */
+-  getUserProfiles(secUids: string[]): Promise<Map<string, UserProfile>>;
++  getUserProfiles (secUids: string[]): Promise<Map<string, UserProfile>>
+   /** 用消息视频的 tkey 换加密 CDN 播放地址（CENC 加密流） */
+-  videoUrl(tkey: string): Promise<EncryptedVideoUrl>;
++  videoUrl (tkey: string): Promise<EncryptedVideoUrl>
+   /** 官方表情资源全量映射（id/键值/CDN 直链），发送表情消息与表态键值用 */
+-  emojiList(): Promise<EmojiInfo[]>;
++  emojiList (): Promise<EmojiInfo[]>
+   /** 表情资源列表（sticker/scenes 决定面板：缺省我的收藏，其他面板场景可传参探测） */
+-  stickerList(options?: {
+-    scenes?: string;
+-    cursor?: number;
+-    limit?: number;
+-  }): Promise<StickerPage>;
++  stickerList (options?: {
++    scenes?: string
++    cursor?: number
++    limit?: number
++  }): Promise<StickerPage>
+   /** 我的收藏表情（CUSTOM_STICKER_PAGE 面板） */
+-  stickerFavs(): Promise<StickerPage>;
++  stickerFavs (): Promise<StickerPage>
+   /** 动图/GIF 表情：我的收藏中带 animate 动图的贴纸 */
+-  stickerGifs(): Promise<StickerPage>;
++  stickerGifs (): Promise<StickerPage>
+   /** 收藏/取消收藏表情（remove=true 取消） */
+-  stickerCollect(ids: string[], options?: {
+-    remove?: boolean;
+-  }): Promise<StickerCollectResult>;
+-  getChatHistory(address: ConversationAddress & {
+-    cursor?: number;
+-    count?: number;
+-  }): Promise<ChatMessage[]>;
++  stickerCollect (ids: string[], options?: {
++    remove?: boolean
++  }): Promise<StickerCollectResult>
++  getChatHistory (address: ConversationAddress & {
++    cursor?: number
++    count?: number
++  }): Promise<ChatMessage[]>
+   /** 按 id 批量查会话详情（ticket/未读/成员），映射对齐列表会话 */
+-  conversationsInfo(items: ConversationAddress[]): Promise<GroupInfo[]>;
++  conversationsInfo (items: ConversationAddress[]): Promise<GroupInfo[]>
+   /** 会话成员已读游标（cmd=2000 get_read_index） */
+-  readIndex(conv: ConversationAddress): Promise<ReadIndexRow[]>;
++  readIndex (conv: ConversationAddress): Promise<ReadIndexRow[]>
+   /** 会话成员最小同步游标（cmd=2001 get_min_index） */
+-  minIndex(conv: ConversationAddress): Promise<MinIndexRow[]>;
++  minIndex (conv: ConversationAddress): Promise<MinIndexRow[]>
+   /** 按 uid 消息区间查询（cmd=2048，HAR 语义不完整，返回原始结构） */
+-  userMessageStat(req?: UserMessageQuery): Promise<Record<string, unknown>>;
++  userMessageStat (req?: UserMessageQuery): Promise<Record<string, unknown>>
+   /** 消息回执确认（cmd=2010 client/ack） */
+-  ackMessage(item: ClientAckItem): Promise<ActionResult>;
++  ackMessage (item: ClientAckItem): Promise<ActionResult>
+   /** 陌生人会话列表（cmd=1001，实测服务端限流 409 时 statusMsg 会给出原因） */
+-  strangerConversations(req?: StrangerListOptions): Promise<ActionResult>;
++  strangerConversations (req?: StrangerListOptions): Promise<ActionResult>
+   /** 按文件信息调度 CDN 传输节点（vc-gate-edge get_peer） */
+-  getPeer(req: GetPeerRequest): Promise<GetPeerResult>;
++  getPeer (req: GetPeerRequest): Promise<GetPeerResult>
+   /** im 活跃心跳上报（登录后打一次即可，成功即静默） */
+-  heartbeat(): Promise<void>;
++  heartbeat (): Promise<void>
+   /** 批量查 sec 用户在线状态（source 透传，缺省 heartbeat） */
+-  onlineStatus(secUserIds: string[], source?: string): Promise<OnlineItem[]>;
++  onlineStatus (secUserIds: string[], source?: string): Promise<OnlineItem[]>
+   /** 查询在线状态开关（1=开启，我可被对方看到在线） */
+-  activeSwitch(): Promise<number>;
++  activeSwitch (): Promise<number>
+   /** 标记一批消息已读（会话侧收件箱收到 50013 的依据） */
+-  readSwitch(items: ReadSwitchItem[]): Promise<void>;
++  readSwitch (items: ReadSwitchItem[]): Promise<void>
+   /** 对话场景资料（字段比 profileOther 少） */
+-  profileScene(secUid: string): Promise<ProfileDetail>;
++  profileScene (secUid: string): Promise<ProfileDetail>
+   /** 完整资料（含地域/年龄等原始字段，raw 透传） */
+-  profileOther(secUid: string): Promise<ProfileDetail>;
++  profileOther (secUid: string): Promise<ProfileDetail>
+   /** 按 awemeId 批量拉消息中的作品详情（视频/图文） */
+-  awemeDetail(awemeIds: string[], options?: {
+-    originType?: string;
+-    requestSource?: number;
+-    conversationShortId?: string;
+-  }): Promise<AwemeDetail[]>;
++  awemeDetail (awemeIds: string[], options?: {
++    originType?: string
++    requestSource?: number
++    conversationShortId?: string
++  }): Promise<AwemeDetail[]>
+   /** 热门表情分页（cursor+count 翻页） */
+-  emojiTrending(options?: {
+-    cursor?: number;
+-    count?: number;
+-  }): Promise<StickerPage>;
++  emojiTrending (options?: {
++    cursor?: number
++    count?: number
++  }): Promise<StickerPage>
+   /** app 能力开关（决策树 + 动效资源包配置） */
+-  strategyConfig(scenes?: string[]): Promise<StrategyConfig>;
+-  getFriendRequests(options?: {
+-    status?: FriendRequestStatus;
+-  }): Promise<FriendRequestInfo[]>;
+-  getGroupJoinRequests(options?: {
+-    conversationShortId?: string;
+-  }): Promise<GroupJoinRequestInfo[]>;
+-  approveFriend(applicantUid: string): Promise<ActionResult>;
+-  rejectFriend(applicantUid: string): Promise<ActionResult>;
+-  approveGroupJoin(requestId: string): Promise<ActionResult & {
+-    request?: GroupJoinRequestInfo;
+-  }>;
+-  rejectGroupJoin(requestId: string): Promise<ActionResult & {
+-    request?: GroupJoinRequestInfo;
+-  }>;
++  strategyConfig (scenes?: string[]): Promise<StrategyConfig>
++  getFriendRequests (options?: {
++    status?: FriendRequestStatus
++  }): Promise<FriendRequestInfo[]>
++  getGroupJoinRequests (options?: {
++    conversationShortId?: string
++  }): Promise<GroupJoinRequestInfo[]>
++  approveFriend (applicantUid: string): Promise<ActionResult>
++  rejectFriend (applicantUid: string): Promise<ActionResult>
++  approveGroupJoin (requestId: string): Promise<ActionResult & {
++    request?: GroupJoinRequestInfo
++  }>
++  rejectGroupJoin (requestId: string): Promise<ActionResult & {
++    request?: GroupJoinRequestInfo
++  }>
+   /** 设置群名（cmd=902） */
+-  setGroupName(address: ConversationAddress, name: string): Promise<ActionResult>;
++  setGroupName (address: ConversationAddress, name: string): Promise<ActionResult>
+   /** 拉人入群（cmd=650，成功/失败名单按响应回读） */
+-  addGroupMembers(address: ConversationAddress, uids: string[]): Promise<ActionResult & {
+-    success?: string[];
+-    failed?: string[];
+-  }>;
++  addGroupMembers (address: ConversationAddress, uids: string[]): Promise<ActionResult & {
++    success?: string[]
++    failed?: string[]
++  }>
+   /** 移出群成员（cmd=651） */
+-  removeGroupMembers(address: ConversationAddress, uids: string[]): Promise<ActionResult>;
++  removeGroupMembers (address: ConversationAddress, uids: string[]): Promise<ActionResult>
+   /** 退出群聊（cmd=652，响应为空 body） */
+-  leaveGroup(address: ConversationAddress): Promise<ActionResult>;
++  leaveGroup (address: ConversationAddress): Promise<ActionResult>
+   /** 删除会话（cmd=603，响应为空 body） */
+-  deleteConversation(address: ConversationAddress, options?: {
+-    lastMessageIndex?: string;
+-  }): Promise<ActionResult>;
++  deleteConversation (address: ConversationAddress, options?: {
++    lastMessageIndex?: string
++  }): Promise<ActionResult>
+   /** 会话设置：置顶/免打扰/收藏（cmd=921，响应回读完整设置） */
+-  setConversationSetting(address: ConversationAddress, input: ConversationSettingInput): Promise<ActionResult & {
+-    setting?: Record<string, unknown>;
+-  }>;
++  setConversationSetting (address: ConversationAddress, input: ConversationSettingInput): Promise<ActionResult & {
++    setting?: Record<string, unknown>
++  }>
+   /** 创建群聊（cmd=609），返回创建出的会话 */
+-  createGroup(options: CreateGroupOptions): Promise<ActionResult & {
+-    group?: GroupInfo;
+-  }>;
++  createGroup (options: CreateGroupOptions): Promise<ActionResult & {
++    group?: GroupInfo
++  }>
+   /** 批量查所有成员已读游标（cmd=2038，HAR 响应为空 body） */
+-  batchReadIndex(conv: ConversationAddress): Promise<ActionResult>;
++  batchReadIndex (conv: ConversationAddress): Promise<ActionResult>
+   /** 统一发送上下文：HTTP cookie 通道（native ImOption profile）+ WS 直发通道辅助字段 */
+-  private sendCtx;
++  private sendCtx
+ }
+ //#endregion
+ //#region src/im/cenc.d.ts
+@@ -1291,300 +1291,310 @@ declare class Im {
+  * 解密 CENC(cenc 方案) 加密 mp4：keyHex 为消息 `video.skey`（32 hex = 16 字节 AES-128）。
+  * 输出可直接播放的 mp4；未加密的输入原样返回。
+  */
+-declare function decryptCencMp4(data: Uint8Array, keyHex: string): Buffer;
++declare function decryptCencMp4 (data: Uint8Array, keyHex: string): Buffer
+ //#endregion
+ //#region src/user.d.ts
+ interface SelfInfo {
+-  uid?: string;
+-  nickname?: string;
++  uid?: string
++  nickname?: string
+   /** 真实头像(avatar_thumb.url_list 首个;passport 的 avatar_url 是 mosaic 占位) */
+-  avatar?: string;
++  avatar?: string
+ }
+ //#endregion
+ //#region src/bot.d.ts
+ /** chatId：`type:shortId:conversationId` 的不透明串，内部解析为 address，格式不承诺稳定 */
+-declare function chatIdOf(src: PushMessage | {
+-  conversationId: string;
+-  conversationShortId: string;
+-  conversationType: number;
+-}): string;
++declare function chatIdOf (src: PushMessage | {
++  conversationId: string
++  conversationShortId: string
++  conversationType: number
++}): string
+ /** 入站消息附 chatId 与发送者昵称，发消息直接回传 */
+ type BotMessage = InboundMessage & {
+-  chatId: string;
+-  senderNickname?: string;
+-};
++  chatId: string
++  senderNickname?: string
++}
+ /** 可进昵称缓存的条目（好友/陌生人/群成员/申请列表的公共形状） */
+ type NickEntry = {
+-  uid: string;
+-  nickname?: string;
+-  alias?: string;
+-};
++  uid: string
++  nickname?: string
++  alias?: string
++}
+ type BotEventMap = {
+-  message: [BotMessage];
++  message: [BotMessage]
+   /** 消息被编辑（编辑重推：原消息全文 + editCount/editInfo 元数据） */
+-  'message:edited': [BotMessage];
+-  notice: [NoticeEvent];
+-  request: [RequestEvent];
++  'message:edited': [BotMessage]
++  notice: [NoticeEvent]
++  request: [RequestEvent]
+   /** 语音来电（messageType=50018；出站 msg.call 未支持，来电可感知） */
+-  voip: [VoipCallEvent];
++  voip: [VoipCallEvent]
+   /** 单聊已读回执（messageType=50013） */
+-  read: [ReadEvent];
++  read: [ReadEvent]
+   /** 会话状态变更，高频（messageType=50001） */
+-  status: [StatusEvent];
+-  reconnecting: [WsReconnectEvent];
+-  close: [WsCloseEvent];
+-};
+-type BotEvent = keyof BotEventMap;
++  status: [StatusEvent]
++  reconnecting: [WsReconnectEvent]
++  close: [WsCloseEvent]
++}
++type BotEvent = keyof BotEventMap
+ declare class Msg {
+-  private readonly bot;
+-  constructor(bot: Bot);
++  private readonly bot
++  constructor (bot: Bot)
+   /** 统一发送：type 判别一条消息；媒体输入源自动上传，收侧消息对象可直接回传 */
+-  send(chatId: string, body: MsgBody): Promise<ReturnType<Im['sendBody']>>;
++  send (chatId: string, body: MsgBody): Promise<ReturnType<Im['sendBody']>>
+   /** 编辑已发送消息——不支持：HTTP 复用原 cmid 会被服务端幂等去重（返回原消息 id，内容不更新），
+    *  官方编辑走 App 专属通道（WS 直发已实测证伪）。此方法仅作为「同 cmid 发新消息（去重）」兜底。 */
+-  edit(chatId: string, clientMessageId: string, body: MsgBody): Promise<ReturnType<Im['sendBody']>>;
++  edit (chatId: string, clientMessageId: string, body: MsgBody): Promise<ReturnType<Im['sendBody']>>
+   /** 媒体输入源归一化：image/video/file 简写源先上传为资产，预上传 asset 原样透传 */
+-  private prepare;
++  private prepare
+   /** 上报输入状态（true 正在输入 / false 停止），对方端显示「正在输入…」 */
+-  sendTyping(chatId: string, typing: boolean): Promise<boolean>;
++  sendTyping (chatId: string, typing: boolean): Promise<boolean>
+   /** 发起语音通话（未支持：服务端无 VOIP 通道，返回 statusCode=-1） */
+-  call(chatId: string, calleeUid: string): ReturnType<Im['callVoice']>;
++  call (chatId: string, calleeUid: string): ReturnType<Im['callVoice']>
+   /** 引用回复：消息对象来自 bot.on('message')，自动提取引用元数据 */
+-  reply(chatId: string, msg: BotMessage, text: string): ReturnType<Im['reply']>;
+-  recall(chatId: string, serverMessageId: string): ReturnType<Im['recall']>;
++  reply (chatId: string, msg: BotMessage, text: string): ReturnType<Im['reply']>
++  recall (chatId: string, serverMessageId: string): ReturnType<Im['recall']>
+   /** 表情回应：emoji 为抖音键值（如 '[爱心]'），isSet false 取消 */
+-  react(chatId: string, serverMessageId: string, emoji: string, isSet?: boolean): ReturnType<Im['modifyReaction']>;
++  react (chatId: string, serverMessageId: string, emoji: string, isSet?: boolean): ReturnType<Im['modifyReaction']>
+   /** 标记已读；msg 缺省读到底 */
+-  read(chatId: string, msg?: BotMessage): ReturnType<Im['markRead']>;
++  read (chatId: string, msg?: BotMessage): ReturnType<Im['markRead']>
+ }
+ declare class Media {
+-  private readonly bot;
+-  constructor(bot: Bot);
++  private readonly bot
++  constructor (bot: Bot)
+   /** 图片上传：url/路径/base64/字节均可 */
+-  image(input: MediaInput): Promise<ImageAsset>;
++  image (input: MediaInput): Promise<ImageAsset>
+   /** 视频上传：url/路径/base64/字节均可 */
+-  video(input: MediaInput): Promise<VideoAsset>;
++  video (input: MediaInput): Promise<VideoAsset>
+   /** 文件上传：url/路径/base64/字节均可，名字缺省从来源推断 */
+-  file(input: MediaInput, name?: string): Promise<FileUploadAsset>;
++  file (input: MediaInput, name?: string): Promise<FileUploadAsset>
+   /** 用消息视频的 tkey 换加密 CDN 播放地址（CENC 加密流，需解密后才能播放） */
+-  videoUrl(tkey: string): Promise<EncryptedVideoUrl>;
++  videoUrl (tkey: string): Promise<EncryptedVideoUrl>
+   /** 按 awemeId 批量拉作品详情（视频/图文） */
+-  awemeDetail(awemeIds: string[], options?: {
+-    originType?: string;
+-    requestSource?: number;
+-    conversationShortId?: string;
+-  }): ReturnType<Im['awemeDetail']>;
++  awemeDetail (awemeIds: string[], options?: {
++    originType?: string
++    requestSource?: number
++    conversationShortId?: string
++  }): ReturnType<Im['awemeDetail']>
+   /** CDN 传输节点调度（按文件信息选可用传输节点） */
+-  getPeer(req: GetPeerRequest): ReturnType<Im['getPeer']>;
++  getPeer (req: GetPeerRequest): ReturnType<Im['getPeer']>
+   /** 官方表情资源全量映射（id/键值/CDN 直链），发送表情消息与表态键值用 */
+-  emojiList(): Promise<EmojiInfo[]>;
++  emojiList (): Promise<EmojiInfo[]>
+ }
+ declare class Sticker$1 {
+-  private readonly bot;
+-  constructor(bot: Bot);
++  private readonly bot
++  constructor (bot: Bot)
+   /** 表情资源列表；scenes 缺省我的收藏，其他面板场景可自行传参探测 */
+-  list(options?: {
+-    scenes?: string;
+-    cursor?: number;
+-    limit?: number;
+-  }): ReturnType<Im['stickerList']>;
++  list (options?: {
++    scenes?: string
++    cursor?: number
++    limit?: number
++  }): ReturnType<Im['stickerList']>
+   /** 我的收藏表情（CUSTOM_STICKER_PAGE 面板） */
+-  favs(): ReturnType<Im['stickerFavs']>;
++  favs (): ReturnType<Im['stickerFavs']>
+   /** 动图/GIF 表情：收藏中带 animate 动图的贴纸 */
+-  gifs(): ReturnType<Im['stickerGifs']>;
++  gifs (): ReturnType<Im['stickerGifs']>
+   /** 收藏/取消收藏表情（remove=true 取消） */
+-  collect(ids: string[], options?: {
+-    remove?: boolean;
+-  }): ReturnType<Im['stickerCollect']>;
++  collect (ids: string[], options?: {
++    remove?: boolean
++  }): ReturnType<Im['stickerCollect']>
+   /** 热门表情分页（cursor+count 翻页） */
+-  trending(options?: {
+-    cursor?: number;
+-    count?: number;
+-  }): ReturnType<Im['emojiTrending']>;
++  trending (options?: {
++    cursor?: number
++    count?: number
++  }): ReturnType<Im['emojiTrending']>
+   /** app 能力开关（决策树 + 动效资源包配置） */
+-  strategy(scenes?: string[]): ReturnType<Im['strategyConfig']>;
++  strategy (scenes?: string[]): ReturnType<Im['strategyConfig']>
+ }
+ declare class Frd {
+-  private readonly bot;
+-  constructor(bot: Bot);
+-  list(): Promise<Array<{
+-    chatId: string;
+-  } & Awaited<ReturnType<Im['getFriendList']>>[number]>>;
+-  requests(status?: FriendRequestStatus): ReturnType<Im['getFriendRequests']>;
+-  approve(uid: string): ReturnType<Im['approveFriend']>;
+-  reject(uid: string): ReturnType<Im['rejectFriend']>;
++  private readonly bot
++  constructor (bot: Bot)
++  list (): Promise<Array<{
++    chatId: string
++  } & Awaited<ReturnType<Im['getFriendList']>>[number]>>
++  requests (status?: FriendRequestStatus): ReturnType<Im['getFriendRequests']>
++  approve (uid: string): ReturnType<Im['approveFriend']>
++  reject (uid: string): ReturnType<Im['rejectFriend']>
+ }
+ declare class Grp {
+-  private readonly bot;
+-  constructor(bot: Bot);
+-  list(): Promise<Array<{
+-    chatId: string;
+-  } & Awaited<ReturnType<Im['getGroupList']>>[number]>>;
+-  members(chatId: string): ReturnType<Im['getGroupMembers']>;
++  private readonly bot
++  constructor (bot: Bot)
++  list (): Promise<Array<{
++    chatId: string
++  } & Awaited<ReturnType<Im['getGroupList']>>[number]>>
++  members (chatId: string): ReturnType<Im['getGroupMembers']>
+   /** 群入群申请；省略 chatId 查全部群 */
+-  requests(chatId?: string): ReturnType<Im['getGroupJoinRequests']>;
+-  approve(requestId: string): ReturnType<Im['approveGroupJoin']>;
+-  reject(requestId: string): ReturnType<Im['rejectGroupJoin']>;
+-  rename(chatId: string, name: string): ReturnType<Im['setGroupName']>;
++  requests (chatId?: string): ReturnType<Im['getGroupJoinRequests']>
++  approve (requestId: string): ReturnType<Im['approveGroupJoin']>
++  reject (requestId: string): ReturnType<Im['rejectGroupJoin']>
++  rename (chatId: string, name: string): ReturnType<Im['setGroupName']>
+   /** 拉人入群（cmd=650，成功/失败名单在返回里回读） */
+-  addMembers(chatId: string, uids: string[]): ReturnType<Im['addGroupMembers']>;
++  addMembers (chatId: string, uids: string[]): ReturnType<Im['addGroupMembers']>
+   /** 移出群成员（cmd=651） */
+-  removeMembers(chatId: string, uids: string[]): ReturnType<Im['removeGroupMembers']>;
++  removeMembers (chatId: string, uids: string[]): ReturnType<Im['removeGroupMembers']>
+   /** 退出群聊（cmd=652，响应为空 body） */
+-  leave(chatId: string): ReturnType<Im['leaveGroup']>;
++  leave (chatId: string): ReturnType<Im['leaveGroup']>
+   /** 创建群聊（cmd=609），返回会话（含 chatId） */
+-  create(options: CreateGroupOptions): Promise<Awaited<ReturnType<Im['createGroup']>> & {
+-    chatId?: string;
+-  }>;
++  create (options: CreateGroupOptions): Promise<Awaited<ReturnType<Im['createGroup']>> & {
++    chatId?: string
++  }>
+ }
+ declare class Chat {
+-  private readonly bot;
+-  constructor(bot: Bot);
+-  history(chatId: string, opts?: {
+-    cursor?: number;
+-    count?: number;
+-  }): ReturnType<Im['getChatHistory']>;
+-  strangers(): ReturnType<Im['getStrangerList']>;
++  private readonly bot
++  constructor (bot: Bot)
++  history (chatId: string, opts?: {
++    cursor?: number
++    count?: number
++  }): ReturnType<Im['getChatHistory']>
++  strangers (): ReturnType<Im['getStrangerList']>
+   /** 会话详情（ticket/未读/成员），映射对齐列表会话 */
+-  info(chatId: string): ReturnType<Im['conversationsInfo']>;
++  info (chatId: string): ReturnType<Im['conversationsInfo']>
+   /** 会话成员已读游标（cmd=2000 get_read_index） */
+-  readIndex(chatId: string): ReturnType<Im['readIndex']>;
++  readIndex (chatId: string): ReturnType<Im['readIndex']>
+   /** 会话成员最小同步游标（cmd=2001 get_min_index，增量拉取起点） */
+-  minIndex(chatId: string): ReturnType<Im['minIndex']>;
++  minIndex (chatId: string): ReturnType<Im['minIndex']>
+   /** 按 uid 消息区间查询（cmd=2048，语义不完整返回原始结构） */
+-  userMessageStat(req?: UserMessageQuery): ReturnType<Im['userMessageStat']>;
++  userMessageStat (req?: UserMessageQuery): ReturnType<Im['userMessageStat']>
+   /** 消息回执确认（cmd=2010 client/ack） */
+-  ack(chatId: string, serverMessageId: string): ReturnType<Im['ackMessage']>;
++  ack (chatId: string, serverMessageId: string): ReturnType<Im['ackMessage']>
+   /** 陌生人会话列表（实测服务端限流 409 时 statusMsg 会给出原因） */
+-  strangerConversations(): ReturnType<Im['strangerConversations']>;
++  strangerConversations (): ReturnType<Im['strangerConversations']>
+   /** 将一批入站消息标记已读（会话侧收到 50013 已读回执的依据） */
+-  readSwitch(chatId: string, msgs: BotMessage[]): ReturnType<Im['readSwitch']>;
++  readSwitch (chatId: string, msgs: BotMessage[]): ReturnType<Im['readSwitch']>
+   /** 删除会话（cmd=603，响应为空 body） */
+-  delete(chatId: string): ReturnType<Im['deleteConversation']>;
++  delete (chatId: string): ReturnType<Im['deleteConversation']>
+   /** 会话设置：置顶/免打扰/收藏（cmd=921，响应回读完整设置） */
+-  setting(chatId: string, input: ConversationSettingInput): ReturnType<Im['setConversationSetting']>;
++  setting (chatId: string, input: ConversationSettingInput): ReturnType<Im['setConversationSetting']>
+   /** 批量查所有成员已读游标（cmd=2038，HAR 响应为空 body） */
+-  batchReadIndex(chatId: string): ReturnType<Im['batchReadIndex']>;
++  batchReadIndex (chatId: string): ReturnType<Im['batchReadIndex']>
+ }
+ declare class User {
+-  private readonly bot;
+-  constructor(bot: Bot);
+-  self(): Promise<SelfInfo>;
++  private readonly bot
++  constructor (bot: Bot)
++  self (): Promise<SelfInfo>
+   /** 对话场景资料（字段比 profileOther 少） */
+-  profileScene(secUid: string): ReturnType<Im['profileScene']>;
++  profileScene (secUid: string): ReturnType<Im['profileScene']>
+   /** 完整资料（含地域/年龄等原始字段，raw 透传） */
+-  profileOther(secUid: string): ReturnType<Im['profileOther']>;
++  profileOther (secUid: string): ReturnType<Im['profileOther']>
+   /** 批量查 sec 用户在线状态 */
+-  onlineStatus(secUserIds: string[], source?: string): ReturnType<Im['onlineStatus']>;
++  onlineStatus (secUserIds: string[], source?: string): ReturnType<Im['onlineStatus']>
+   /** im 活跃心跳上报（登录后打一次即可） */
+-  heartbeat(): ReturnType<Im['heartbeat']>;
++  heartbeat (): ReturnType<Im['heartbeat']>
+   /** 在线状态开关（1=开启，我可被对方看到在线） */
+-  activeSwitch(): ReturnType<Im['activeSwitch']>;
++  activeSwitch (): ReturnType<Im['activeSwitch']>
+ }
+ interface BotOpts {
+   /** 登录 Cookie（login 返回或已登录浏览器复制） */
+-  cookie: string;
++  cookie: string
+   /** 自身数字 uid；省略时 start() 自动获取 */
+-  userId?: string;
+-  userAgent?: string;
+-  timeout?: number;
++  userId?: string
++  userAgent?: string
++  timeout?: number
+   /** true 时自发消息也作为 message 事件下发（默认过滤） */
+-  selfMessage?: boolean;
+-  log?: Log;
++  selfMessage?: boolean
++  log?: Log
+ }
+ /**
+  * SDK 门面：统一 `bot.域.动作`。收消息走 Android Frontier WS 推送，
+  * 发消息统一 HTTP cookie 通道（cmd=100），HTTP 同时承担收件箱查询与媒体上传。
+  */
+ declare class Bot {
+-  readonly msg: Msg;
+-  readonly media: Media;
+-  readonly frd: Frd;
+-  readonly grp: Grp;
+-  readonly chat: Chat;
+-  readonly user: User;
+-  readonly sticker: Sticker$1;
+-  private readonly opts;
+-  private readonly log;
+-  private userId;
+-  private httpInstance?;
+-  private imInstance?;
++  readonly msg: Msg
++  readonly media: Media
++  readonly frd: Frd
++  readonly grp: Grp
++  readonly chat: Chat
++  readonly user: User
++  readonly sticker: Sticker$1
++  private readonly opts
++  private readonly log
++  private userId
++  private httpInstance?
++  private imInstance?
+   /** uid → 昵称 + 写入时间缓存：事件下发 senderNickname 用（群成员 alias 优先）；TTL 1 分钟，过期随好友列表整体刷新（昵称会变更，避免长期陈旧） */
+-  private readonly nicks;
+-  private readonly nickAt;
+-  private static readonly NICK_TTL;
+-  private static readonly now;
++  private readonly nicks
++  private readonly nickAt
++  private static readonly NICK_TTL
++  private static readonly now
+   /** 单条写入（消息补拉路径用，与 rememberNicks 一致记时间） */
+-  private setNick;
++  private setNick
+   /** 正在后台补拉昵称的 uid，防重复请求 */
+-  private readonly nickFetching;
++  private readonly nickFetching
+   /** start 前注册的监听，start 时统一接到 Im */
+-  private readonly pending;
+-  constructor(opts: BotOpts);
++  private readonly pending
++  constructor (opts: BotOpts)
+   /** 自身数字 uid（start 后可用） */
+-  get id(): string;
+-  on<T extends BotEvent>(event: T, fn: (...args: BotEventMap[T]) => void): void;
+-  off<T extends BotEvent>(event: T, fn: (...args: BotEventMap[T]) => void): void;
+-  start(): Promise<void>;
++  get id (): string
++  on<T extends BotEvent> (event: T, fn: (...args: BotEventMap[T]) => void): void
++  off<T extends BotEvent> (event: T, fn: (...args: BotEventMap[T]) => void): void
++  start (): Promise<void>
+   /** 列表查询结果顺带进昵称缓存（记录写入时间供 TTL 判定） */
+-  rememberNicks(entries: readonly NickEntry[]): void;
++  rememberNicks (entries: readonly NickEntry[]): void
+   /** 按 uid 查昵称：TTL 内命中直接返回，过期/未命中拉一次好友列表整体回填（发送 @ 自动补昵称用） */
+-  nickOf(uid: string): Promise<string | undefined>;
++  nickOf (uid: string): Promise<string | undefined>
+   /** 发送者昵称补拉：未命中先查资料接口/列表，同 uid 并发去重共用同一 promise；失败静默不影响下发 */
+-  private ensureNick;
+-  private fetchNicks;
++  private ensureNick
++  private fetchNicks
+   /** message 事件补 chatId 与 senderNickname（等待补拉完成，首条即带昵称），其余事件原样透传 */
+-  private bind;
++  private bind
+   /** 视频播放地址补拉：随事件直接下发完整解密流程所需 URL；失败静默（调用方仍可 media.videoUrl 手动换） */
+-  private ensureVideoUrl;
+-  stop(): void;
++  private ensureVideoUrl
++  stop (): void
+   /** 域方法内部取用；未启动即抛出 */
+-  im(): Im;
+-  http(): Http;
++  im (): Im
++  http (): Http
+ }
+ //#endregion
+ //#region src/login.d.ts
+-type QrStatus = 'new' | 'scanned' | 'confirmed' | 'expired' | (string & {});
++type QrStatus = 'new' | 'scanned' | 'confirmed' | 'expired' | (string & {})
+ interface QrUserData {
+-  app_id?: number;
+-  user_id?: number;
+-  user_id_str?: string;
+-  sec_user_id?: string;
+-  screen_name?: string;
+-  name?: string;
+-  avatar_url?: string;
+-  mobile?: string;
+-  has_password?: number;
+-  country_code?: number;
+-  [key: string]: unknown;
++  app_id?: number
++  user_id?: number
++  user_id_str?: string
++  sec_user_id?: string
++  screen_name?: string
++  name?: string
++  avatar_url?: string
++  mobile?: string
++  has_password?: number
++  country_code?: number
++  [key: string]: unknown
+ }
+ /** 二次验证输入描述:kind=sms 附 maskedMobile,kind=password 需返回账号密码 */
+ interface MfaInfo {
+-  kind?: 'sms' | 'password';
+-  maskedMobile?: string;
++  kind?: 'sms' | 'password'
++  maskedMobile?: string
++}
++/** patch: 服务端可选的二次验证方式 */
++interface VerifyWay {
++  verify_way?: string
++  mobile?: string
++  sms_content?: string
++  channel_mobile?: string
++  [key: string]: unknown
+ }
+ interface LoginOpts {
+   /** 取码后回调:QR 串(扫码页 URL,兜底 token)与 base64 图,渲染权交给调用方 */
+   onQr?: (qr: {
+-    url: string;
+-    base64?: string;
+-  }) => void | Promise<void>;
++    url: string
++    base64?: string
++  }) => void | Promise<void>
+   /** 扫码状态:new/scanned/verifying/confirmed…(含中文提示文案) */
+-  onStatus?: (s: string) => void | Promise<void>;
++  onStatus?: (s: string) => void | Promise<void>
+   /** 需本地安全验证时回调:验证页地址(浏览器打开) */
+-  onVerifyUrl?: (url: string) => void;
++  onVerifyUrl?: (url: string) => void
+   /** 触发二次验证时回调:返回短信验证码或密码;未提供则登录失败 */
+-  onMfa?: (info: MfaInfo) => string | Promise<string>;
+-  userAgent?: string;
+-  log?: Log;
++  onMfa?: (info: MfaInfo) => string | Promise<string>
++  /** patch: 选择二次验证方式(返回 verify_way;返回空值沿用默认优先级) */
++  chooseWay?: (ways: VerifyWay[]) => string | Promise<string>
++  userAgent?: string
++  log?: Log
+ }
+ /** 登录会话:userId 为数字 uid(frontier 握手/消息过滤需要),存储由调用方自理 */
+ interface Session {
+-  userId: string;
+-  cookie: string;
+-  userData?: QrUserData;
++  userId: string
++  cookie: string
++  userData?: QrUserData
+ }
+ /** 扫码登录全流程;调用链形态对齐 douyin-im beginLogin 桌面流程 */
+-declare function login(opts?: LoginOpts): Promise<Session>;
++declare function login (opts?: LoginOpts): Promise<Session>
+ //#endregion
+-export { type ActionResult, type AwemeDetail, Bot, type BotEvent, type BotEventMap, type BotMessage, type BotOpts, type Card, type ChatMessage, type ClientAckItem, type ConversationAddress, type EmojiInfo, type EncryptedVideoUrl, type FileUploadAsset, type FriendInfo, type FriendRequestInfo, type GetPeerRequest, type GetPeerResult, type GroupCard, type GroupInfo, type GroupJoinRequestInfo, type GroupMemberChange, type GroupMemberInfo, type GroupMemberUpdate, type ImageAsset, type InboundMessage, type LinkCard, type LocationCard, type Log, type LoginOpts, type MediaInput, type MfaInfo, type MinIndexRow, type MsgBody, type NoticeEvent, type OnlineItem, type ProfileDetail, type QrStatus, type ReadEvent, type ReadIndexRow, type ReadSwitchItem, type RecallResult, type RecvBody, type RequestEvent, type Session, type ShareItem, type StatusEvent, type Sticker, type StickerCollectResult, type StickerImage, type StickerPage, type StrangerInfo, type StrangerListOptions, type StrategyConfig, type TextMention, type UserCard, type UserMessageQuery, type UserProfile, type VideoAsset, type VideoSend, type VoipCallEvent, type WsCloseEvent, type WsReconnectEvent, chatIdOf, createLog, decryptCencMp4, login };
+\ No newline at end of file
++export { type ActionResult, type AwemeDetail, Bot, type BotEvent, type BotEventMap, type BotMessage, type BotOpts, type Card, type ChatMessage, type ClientAckItem, type ConversationAddress, type EmojiInfo, type EncryptedVideoUrl, type FileUploadAsset, type FriendInfo, type FriendRequestInfo, type GetPeerRequest, type GetPeerResult, type GroupCard, type GroupInfo, type GroupJoinRequestInfo, type GroupMemberChange, type GroupMemberInfo, type GroupMemberUpdate, type ImageAsset, type InboundMessage, type LinkCard, type LocationCard, type Log, type LoginOpts, type MediaInput, type MfaInfo, type MinIndexRow, type MsgBody, type NoticeEvent, type OnlineItem, type ProfileDetail, type QrStatus, type ReadEvent, type ReadIndexRow, type ReadSwitchItem, type RecallResult, type RecvBody, type RequestEvent, type Session, type ShareItem, type StatusEvent, type Sticker, type StickerCollectResult, type StickerImage, type StickerPage, type StrangerInfo, type StrangerListOptions, type StrategyConfig, type TextMention, type UserCard, type UserMessageQuery, type UserProfile, type VideoAsset, type VideoSend, type VoipCallEvent, type WsCloseEvent, type WsReconnectEvent, chatIdOf, createLog, decryptCencMp4, login }
+\ No newline at end of file
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 6d108929604cf594644c7c72047a3e4e2737f2cf..6927e6ea0d4e0419d07e3173fdb68113bb9e8942 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -8414,7 +8414,14 @@ async function mfa(http, data, opts) {
+ 		biz_params: data.biz_params,
+ 		common_params: data.common_params
+ 	};
+-	const way = selectWay(data);
++	let way = selectWay(data);
++	// patch: 支持调用方选择验证方式(chooseWay 返回 verify_way 字符串;返回空则沿用默认优先级)
++	if (opts.chooseWay) {
++		const chosen = await opts.chooseWay(data.verify_ways ?? []);
++		const match = chosen ? (data.verify_ways ?? []).find((w) => w.verify_way === chosen) : void 0;
++		if (chosen && !match) throw new Error(`不可用的验证方式: ${chosen}`);
++		if (match) way = match;
++	}
+ 	if (!way?.verify_way) {
+ 		const list = (data.verify_ways ?? []).map((w) => w.verify_way).filter(Boolean).join(", ");
+ 		throw new Error(`无可支持的验证方式(服务端可选:${list || "无"});请在抖音 App 完成该次身份验证后重试`);

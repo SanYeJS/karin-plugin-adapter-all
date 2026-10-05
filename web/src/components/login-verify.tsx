@@ -6,11 +6,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { resolveHost } from '@/lib/api'
+import { authHeaders } from '@/lib/api'
 import { useLoginState, type LoginPhase } from '@/lib/login-events'
 
 /** 后端登录验证 API 前缀 与 src/server.ts 保持一致 */
-const LOGIN_API_BASE = `${resolveHost()}/adapter-all/api/login`
+const LOGIN_API_BASE = '/adapter-all/api/login'
 
 /** 各登录阶段的状态徽章文案与配色 */
 const PHASE_META: Record<LoginPhase, { label: string; className: string }> = {
@@ -52,7 +52,7 @@ export default function LoginVerifyPanel ({ uin }: { uin: string }) {
     try {
       const res = await fetch(`${LOGIN_API_BASE}/sms`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ uin: state.uin, action, code: action === 'submit' ? code : undefined }),
       })
       const json = await res.json().catch(() => ({}))

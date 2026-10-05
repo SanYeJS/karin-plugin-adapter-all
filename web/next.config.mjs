@@ -18,4 +18,14 @@ const nextConfig = {
   outputFileTracingRoot: fileURLToPath(new URL('.', import.meta.url)),
 }
 
+// 开发联调: 插件 API 代理到本地 Karin 后端 (生产为同源静态托管, 不含 rewrites 不影响 export)
+// 可用 KARIN_HTTP 环境变量覆盖后端地址, 默认 http://localhost:7777
+// 注意: basePath 会自动为 rewrite source 加上 /adapter-all 前缀, source 只需写相对路径
+if (process.env.NODE_ENV === 'development') {
+  const target = (process.env.KARIN_HTTP ?? 'http://localhost:7777').replace(/\/+$/, '')
+  nextConfig.rewrites = async () => [
+    { source: '/api/:path*', destination: `${target}/adapter-all/api/:path*` },
+  ]
+}
+
 export default nextConfig

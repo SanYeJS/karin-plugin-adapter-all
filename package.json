@@ -1,6 +1,6 @@
 {
   "name": "karin-plugin-adapter-all",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "author": "shijin",
   "type": "module",
   "description": "多协议统一适配器: onebot11(snowluma/napcat/lagrange) | onebot12 | icqq | milky",
@@ -73,6 +73,7 @@
     "@saltify/milky-types": "^1.2.2",
     "@snowluma/sdk": "^1.14.20",
     "@ys7zts/karin-plugin-nekostatus": "^1.4.13",
+    "douyin.ts": "0.2.1",
     "qrcode": "^1.5.4",
     "ws": "npm:@karinjs/ws@1.0.4"
   },

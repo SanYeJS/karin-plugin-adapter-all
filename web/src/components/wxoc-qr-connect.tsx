@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CheckCircle2, Loader2, QrCode, RefreshCw } from 'lucide-react'
+import { Loader2, QrCode, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,30 +13,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { authHeaders } from '@/lib/api'
+import { authHeaders, wxocQrCancel, wxocQrStart, wxocQrStatus } from '@/lib/api'
 
-/** 后端扫码绑定 API 前缀 与 src/server.ts 保持一致 */
-const QR_API_BASE = '/adapter-all/api/qqbot/qr'
-
-/** 扫码绑定成功的凭证 由父组件回填表单 */
-export interface QrBindResult {
-  appId: string
-  appSecret: string
-  userOpenid?: string
+/** 扫码登录成功后回填给父组件的凭据 */
+export interface WxocQrResult {
+  token: string
+  accountId: string
+  userId: string
+  nickname: string
+  baseUrl: string
 }
 
+type Phase = 'idle' | 'pending' | 'expired' | 'connecting' | 'online'
+
 /**
- * QQ开放平台「扫码绑定」: 卡片头部入口 + 居中模态弹窗展示大尺寸二维码。
- * 打开即自动生成二维码 → 手机 QQ 扫码确认 → 2s 轮询 /status → 成功后回调 onBound,
- * 由父组件把 AppID / AppSecret 回填当前卡片表单, 用户保存后生效。
+ * 微信 Claw (wxoc)「扫码登录」: 表单内入口按钮 + 居中模态弹窗。
+ * 打开即创建扫码任务展示二维码 → 2s 轮询状态 → 扫码成功后回填
+ * token / 机器人 ID / 用户 ID / 昵称 / API 地址并自动关闭, 关闭时取消会话。
  */
-export default function QqbotQrConnect ({ onBound }: { onBound: (v: QrBindResult) => void }) {
+export default function WxocQrConnect ({ onBound }: { onBound: (v: WxocQrResult) => void }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [image, setImage] = useState('')
+  const [phase, setPhase] = useState<Phase>('idle')
   const sidRef = useRef('')
-  const [phase, setPhase] = useState<'idle' | 'pending' | 'connecting' | 'online' | 'expired'>('idle')
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const onBoundRef = useRef(onBound)
   onBoundRef.current = onBound
@@ -48,28 +49,37 @@ export default function QqbotQrConnect ({ onBound }: { onBound: (v: QrBindResult
     }
   }, [])
 
+  /** 关闭弹窗 取消后台轮询与扫码任务 */
+  const close = useCallback(() => {
+    stopPolling()
+    if (sidRef.current) {
+      wxocQrCancel(sidRef.current).catch(() => { /* 取消失败无需处理 */ })
+      sidRef.current = ''
+    }
+    setOpen(false)
+  }, [stopPolling])
+
   /** 轮询一次扫码状态 失败停止轮询避免刷屏 */
-  const poll = async (id: string) => {
+  const poll = async (sid: string) => {
     try {
-      const res = await fetch(`${QR_API_BASE}/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ sid: id }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok || json?.code === 500) throw new Error(json?.message ?? `HTTP ${res.status}`)
-      const d = json?.data ?? {}
+      const res = await wxocQrStatus(sid)
+      if (!res.success) throw new Error(res.message ?? '扫码状态查询失败')
+      const d = res.data
+      if (!d) return
       if (d.phase === 'scanned') {
-        // 绑定成功 → 回填凭证, 转入「连接中」阶段, 轮询机器人连接状态
+        // 扫码成功 → 回填凭据, 转入「连接中」阶段, 轮询 bot 连接状态 (会话已完成 无需取消)
         stopPolling()
-        const appId = String(d.appId ?? '')
+        const accountId = String(d.accountId ?? '')
+        sidRef.current = ''
         onBoundRef.current({
-          appId,
-          appSecret: String(d.appSecret ?? ''),
-          userOpenid: d.userOpenid,
+          token: String(d.token ?? ''),
+          accountId,
+          userId: String(d.userId ?? ''),
+          nickname: String(d.nickname ?? ''),
+          baseUrl: String(d.baseUrl ?? ''),
         })
         setPhase('connecting')
-        timerRef.current = setInterval(() => { void pollConnected(appId) }, 2000)
+        timerRef.current = setInterval(() => { void pollConnected(accountId) }, 2000)
       } else if (d.phase === 'expired') {
         stopPolling()
         setPhase('expired')
@@ -80,15 +90,16 @@ export default function QqbotQrConnect ({ onBound }: { onBound: (v: QrBindResult
     }
   }
 
-  /** 轮询机器人连接状态 连上后进入「登录成功」 */
-  const pollConnected = async (appId: string) => {
+  /** 轮询 bot 连接状态 连上后进入「登录成功」并自动关闭 */
+  const pollConnected = async (accountId: string) => {
     try {
-      const res = await fetch(`${QR_API_BASE}/connected?appId=${encodeURIComponent(appId)}`, { headers: authHeaders() })
+      const res = await fetch(`/adapter-all/api/wxoc/qr/connected?accountId=${encodeURIComponent(accountId)}`, { headers: authHeaders() })
       const json = await res.json().catch(() => ({}))
       if (!res.ok || json?.code === 500) throw new Error(json?.message ?? `HTTP ${res.status}`)
       if (json?.data?.connected) {
         stopPolling()
         setPhase('online')
+        setTimeout(close, 1200)
       }
     } catch (err) {
       stopPolling()
@@ -96,7 +107,7 @@ export default function QqbotQrConnect ({ onBound }: { onBound: (v: QrBindResult
     }
   }
 
-  /** 创建扫码会话并开始轮询 */
+  /** 创建扫码任务并开始轮询 */
   const start = async () => {
     stopPolling()
     setBusy(true)
@@ -104,15 +115,12 @@ export default function QqbotQrConnect ({ onBound }: { onBound: (v: QrBindResult
     setPhase('idle')
     setImage('')
     try {
-      const res = await fetch(`${QR_API_BASE}/start`, { method: 'POST', headers: authHeaders() })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok || json?.code === 500) throw new Error(json?.message ?? `HTTP ${res.status}`)
-      const data = json?.data ?? {}
-      if (!data.id || !data.image) throw new Error('扫码任务创建失败: 响应缺少二维码')
-      sidRef.current = String(data.id)
-      setImage(String(data.image))
+      const res = await wxocQrStart()
+      if (!res.success || !res.data?.id || !res.data?.image) throw new Error(res.message ?? '扫码任务创建失败: 响应缺少二维码')
+      sidRef.current = res.data.id
+      setImage(res.data.image)
       setPhase('pending')
-      timerRef.current = setInterval(() => { void poll(String(data.id)) }, 2000)
+      timerRef.current = setInterval(() => { void poll(sidRef.current) }, 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -120,23 +128,9 @@ export default function QqbotQrConnect ({ onBound }: { onBound: (v: QrBindResult
     }
   }
 
-  /** 关闭弹窗 取消后台轮询与会话 */
-  const close = useCallback(() => {
-    stopPolling()
-    if (sidRef.current) {
-      fetch(`${QR_API_BASE}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ sid: sidRef.current }),
-      }).catch(() => { /* 取消失败无需处理 */ })
-      sidRef.current = ''
-    }
-    setOpen(false)
-  }, [stopPolling])
-
   // 打开弹窗即自动生成二维码
   useEffect(() => {
-    if (open && !image && !busy && phase === 'idle') void start()
+    if (open) void start()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
@@ -149,7 +143,7 @@ export default function QqbotQrConnect ({ onBound }: { onBound: (v: QrBindResult
         variant='ghost'
         size='sm'
         className='px-2 text-muted-foreground hover:text-foreground'
-        title='扫码绑定 (自动获取 AppID / AppSecret)'
+        title='扫码登录 (自动获取登录凭据)'
         onClick={() => setOpen(true)}
       >
         <QrCode className='size-4' />
@@ -159,26 +153,26 @@ export default function QqbotQrConnect ({ onBound }: { onBound: (v: QrBindResult
           <AlertDialogHeader>
             <AlertDialogTitle className='flex items-center justify-center gap-2'>
               <QrCode className='size-4 text-muted-foreground' />
-              扫码绑定 QQ 机器人
+              扫码登录微信 Claw
             </AlertDialogTitle>
             <AlertDialogDescription className='text-center'>
-              无需手动填写凭证，手机 QQ 扫码后自动获取 AppID / AppSecret 并回填表单
+              微信扫码确认登录，成功后自动回填登录凭据
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className='flex min-h-64 flex-col items-center justify-center gap-3 rounded-lg border bg-muted/30 p-4'>
-            {(!image || phase === 'idle') && !error && (
+            {phase === 'idle' && !error && (
               <>
                 <div className='size-56 animate-pulse rounded-md bg-muted' />
                 <p className='text-xs text-muted-foreground'>{busy ? '正在生成二维码...' : ''}</p>
               </>
             )}
-            {image && phase === 'pending' && (
+            {phase === 'pending' && image && (
               <>
                 <div className='relative'>
                   <img
                     src={image}
-                    alt='QQBot 扫码绑定二维码'
+                    alt='微信 Claw 扫码登录二维码'
                     className='size-56 rounded-md border bg-background p-2'
                   />
                   <span className='absolute inset-x-6 -bottom-2.5 mx-auto w-fit'>
@@ -188,33 +182,32 @@ export default function QqbotQrConnect ({ onBound }: { onBound: (v: QrBindResult
                   </span>
                 </div>
                 <p className='mt-2 text-center text-xs leading-relaxed text-muted-foreground'>
-                  请使用手机 QQ「扫一扫」扫码并确认绑定
+                  请使用微信「扫一扫」扫码并确认登录
                 </p>
               </>
             )}
             {phase === 'connecting' && (
               <>
                 <Loader2 className='size-10 animate-spin text-muted-foreground' />
-                <Badge className='bg-amber-500/15 text-amber-600 dark:text-amber-400'>正在连接机器人</Badge>
+                <Badge className='bg-amber-500/15 text-amber-600 dark:text-amber-400'>连接中...</Badge>
                 <p className='text-center text-xs leading-relaxed text-muted-foreground'>
-                  凭证已自动保存并回填，等待机器人连接成功
+                  扫码成功 正在连接账号
                 </p>
               </>
             )}
             {phase === 'online' && (
               <>
-                <CheckCircle2 className='size-14 text-emerald-500' />
                 <Badge className='bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'>登录成功</Badge>
                 <p className='text-center text-xs leading-relaxed text-muted-foreground'>
-                  机器人已连接，可以开始使用了。
+                  账号已连接上线
                 </p>
               </>
             )}
             {phase === 'expired' && (
               <>
                 <Badge variant='outline' className='text-red-600 dark:text-red-400'>二维码已过期</Badge>
-                <Button size='sm' className='gap-1.5' onClick={start} disabled={busy}>
-                  <RefreshCw className='size-3.5' /> 重新生成
+                <Button size='sm' className='gap-1.5' onClick={() => void start()} disabled={busy}>
+                  <RefreshCw className='size-3.5' /> 重新获取
                 </Button>
               </>
             )}

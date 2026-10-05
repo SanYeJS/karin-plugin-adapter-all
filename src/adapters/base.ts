@@ -1,7 +1,7 @@
 import { AdapterBase, registerBot, unregisterBot } from 'node-karin'
 
 /** 支持的协议端 */
-export type Protocol = 'onebot11' | 'onebot12' | 'icqq' | 'milky' | 'kook' | 'qqbot'
+export type Protocol = 'onebot11' | 'onebot12' | 'icqq' | 'milky' | 'kook' | 'qqbot' | 'douyin' | 'wxoc'
 /** OneBot11 下的具体实现 */
 export type OneBot11Impl = 'snowluma' | 'napcat' | 'lagrange' | 'std'
 /** OneBot11 通信方式 */
@@ -69,23 +69,15 @@ export interface BotConfig {
   /** 签名服务地址 如 http://127.0.0.1:8080/ */
   sign_api_addr?: string
   /**
-   * icqq 滑动验证方式 默认 auto (全通道并行, 任一成功即继续):
-   *  - auto     自动: GT网页验证 + txhelper请求码(链接匹配时) + 手动ticket文件 + Pages公网页(配置了 captchaBase 时) 全部并行
+   * icqq 滑动验证方式 默认 gt:
    *  - gt       GT网页验证: 浏览器打开服务端页面完成滑动
    *  - txhelper txhelper请求码: 浏览器输入请求码完成滑动 (仅支持 ssl.captcha.qq.com 类链接)
-   *  - pages    自行部署的 Cloudflare Pages 公网验证码页 (需配置 captchaBase)
    *  - manual   手动: 完成滑动后把 ticket,randstr 写入 data/icqq/slider.ticket
    */
-  sliderMode?: 'auto' | 'gt' | 'txhelper' | 'pages' | 'manual'
-  /** 自建 Cloudflare Pages 验证码处理页地址 (如 https://xxx.pages.dev) sliderMode=pages 时必填 */
-  captchaBase?: string
-  /** 验证码服务注册 Token (与 Pages 端 CAPTCHA_TOKEN 一致, 可选) */
-  captchaToken?: string
+  sliderMode?: 'gt' | 'txhelper' | 'manual'
   /* ==================== kook 专属 (官方 API 直连 url 可留空) ==================== */
   /** Kook Bot Token (申请机器人后由开发者后台生成) */
   kookToken?: string
-  /** Kook API 地址 默认官方 https://www.kookapp.cn/api/v3 */
-  kookApi?: string
   /** Kook 事件接收方式: ws=官方 Gateway / webhook=本端 HTTP 服务接收 默认 ws */
   kookEventMode?: 'ws' | 'webhook'
   /** Kook webhook 模式下的本端监听地址 (如 0.0.0.0:8091) 协议端回调填 http://公网IP:8091/webhook/kook */
@@ -95,27 +87,45 @@ export interface BotConfig {
   qqbotAppId?: string
   /** QQ开放平台机器人 AppSecret (开放平台「开发设置」获取) 官方接入票据之二, 通过 AccessToken 机制鉴权 (鉴权头 QQBot {token}) */
   qqbotClientSecret?: string
-  /** QQBot API 地址 默认官方 https://api.bot.qq.com */
-  qqbotApi?: string
   /** QQBot 事件接收方式: ws=官方 WebSocket Gateway / webhook=本端 HTTP 服务接收 默认 ws */
   qqbotEventMode?: 'ws' | 'webhook'
   /** QQBot webhook 模式下的本端监听地址 (如 0.0.0.0:8092) 开放平台回调填 http://公网IP:8092/webhook/qqbot */
   qqbotWebhookUrl?: string
+  /* ==================== douyin 专属 (会话存储 data/douyin-accounts, 扫码登录后回填) ==================== */
+  /** 抖音账号数字 uid (扫码登录成功后的 platformUid, 匹配本地会话) */
+  douyinUid?: string
+  /** 抖音账号昵称 (显示用) */
+  douyinName?: string
+  /* ==================== wxoc 专属 (微信 Claw ilink 协议, 扫码登录后回填 url 可留空) ==================== */
+  /** 微信 Claw 登录凭证 bot_token */
+  wxocToken?: string
+  /** ilink 机器人 ID */
+  wxocAccountId?: string
+  /** ilink 用户 ID */
+  wxocUserId?: string
+  /** 账号昵称 (显示用) */
+  wxocNickname?: string
+  /** 登录返回的 API 地址 (可选, 留空用默认) */
+  wxocBaseUrl?: string
 }
 
 /** 协议端统一基类 各端继承实现自己的连接与API */
 export abstract class BaseBot<T = any> extends AdapterBase<T> {
   constructor (readonly cfg: BotConfig) {
     super()
-    // icqq 为协议直连 / kook、qqbot 走官方 API 均不强制 url (留空用官方默认地址)
-    if (!['icqq', 'kook', 'qqbot'].includes(cfg.protocol) && !cfg.url) throw new Error(`[${this.constructor.name}] 缺少 url 配置`)
+    // icqq 为协议直连 / kook、qqbot、douyin、wxoc 走官方 API 均不强制 url (留空用官方默认地址)
+    if (!['icqq', 'kook', 'qqbot', 'douyin', 'wxoc'].includes(cfg.protocol) && !cfg.url) throw new Error(`[${this.constructor.name}] 缺少 url 配置`)
     this.adapter.address = cfg.protocol === 'icqq'
       ? `icqq:${cfg.uin || ''}`
       : cfg.protocol === 'kook'
         ? `kook:${cfg.kookToken || ''}`
         : cfg.protocol === 'qqbot'
           ? `qqbot:${cfg.qqbotAppId || ''}`
-          : cfg.url
+          : cfg.protocol === 'douyin'
+            ? `douyin:${cfg.douyinName || cfg.douyinUid || ''}`
+            : cfg.protocol === 'wxoc'
+              ? `wxoc:${cfg.wxocNickname || cfg.wxocAccountId || ''}`
+              : cfg.url
     this.adapter.secret = cfg.accessToken || null
     this.account = {
       uin: '',

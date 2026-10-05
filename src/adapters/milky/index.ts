@@ -12,7 +12,7 @@ import type {
   SendMsgResults,
   UserInfo,
 } from 'node-karin'
-import { version } from '@saltify/milky-types/package.json'
+import milkyPkg from '@saltify/milky-types/package.json' with { type: 'json' }
 import { BaseBot } from '../base'
 import type { BotConfig } from '../base'
 import { Client } from './client'
@@ -50,7 +50,7 @@ export class MilkyBot extends BaseBot {
     this.super = new Client(cfg.url, cfg.accessToken)
     this.raw = createMilkyEventChannel(cfg)
     this.adapter.name = 'Milky'
-    this.adapter.version = version
+    this.adapter.version = milkyPkg.version
     this.adapter.platform = 'qq'
     this.adapter.standard = 'milky'
     // getImplInfo 成功后会用协议端 impl_name 覆盖

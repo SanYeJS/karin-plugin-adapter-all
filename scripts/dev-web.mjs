@@ -20,7 +20,9 @@ const running = await isListening()
 if (running) {
   console.log(`[dev-web] web dev server 已在运行 (http://localhost:${port}), 无需重复启动`)
 } else {
-  exec('start "web-dev" cmd /k "pnpm dev"', { cwd: webDir }, (err, _stdout, stderr) => {
+  // 用 PowerShell 而非 cmd: PSReadLine 支持编辑续行/Ctrl+C 干净退出,
+  // 避免 cmd 粘贴不完整命令后卡死在 "More?" 续行提示
+  exec(`start "web-dev" powershell -NoExit -Command "cd '${webDir}'; pnpm dev"`, (err, _stdout, stderr) => {
     if (err) console.error('[dev-web] 启动 web 新窗口失败:', stderr || err.message)
   })
 }

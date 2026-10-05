@@ -17,7 +17,7 @@ import type {
 import { createClient, genGroupMessageId, parseGroupMessageId } from '@icqqjs/icqq'
 import type { Client, ForwardMessage, Message, MessageElem, Sendable } from '@icqqjs/icqq'
 import { segment } from '@icqqjs/icqq'
-import { version } from '@icqqjs/icqq/package.json'
+import icqqPkg from '@icqqjs/icqq/package.json' with { type: 'json' }
 import { BaseBot } from '../base'
 import type { BotConfig } from '../base'
 import { clearLoginState, emitLoginEvent } from '@/utils/login-events'
@@ -83,7 +83,7 @@ export class IcqqBot extends BaseBot {
     this.super = createClient(clientConfig)
     this.raw = this.super
     this.adapter.name = 'ICQQ'
-    this.adapter.version = version
+    this.adapter.version = icqqPkg.version
     this.adapter.platform = 'qq'
     this.adapter.standard = 'icqq'
     this.adapter.protocol = 'icqq'
@@ -292,47 +292,38 @@ export class IcqqBot extends BaseBot {
     this.#sliderDone = true
     const c: any = this.super
     // NT 新协议登录: 腾讯下发的是 NT 验证链接 (如 ti.qq.com 的 sms-verify-login),
-    // 通用 GT 通道渲染不了, 默认走 CapNT 专用通道 (capnt.928100.xyz 渲染, 依赖第三方服务);
-    // 配置了自建 Pages 验证码处理页 (captchaBase) 时, 可选切换为自建通道
+    // 该页面要求登录会话, 无会话请求一律 503 (Server: TAPISIX/2.2.2, 与 UA/IP/Referer 无关)。
+    // 正确姿势: 用腾讯官方滑块 SDK TCaptcha.js + 链接参数 (aid/uin/sid/login_appid) 内嵌直渲染,
+    // 不经 ti.qq.com 页面即可绕开 503 (928100.xyz 链路同机制, 已逆向验证)。
+    // NT 登录一律走 CapNT 专用通道 (captcha.928100.xyz 渲染 + captcha-nt-api.928100.xyz 轮询)
     if (c.useNTLogin) {
       this.#emit('progress', '正在准备滑动验证...')
       this.logger('warn', `[登录] NT 协议滑动验证: ${url}`)
-      if ((this.cfg.captchaBase || '').trim()) this.#sliderViaPages(url)
-      else this.#sliderViaCapNT(url)
+      this.#sliderViaCapNT(url)
       return
     }
-    const mode = this.cfg.sliderMode || 'auto'
+    const mode = this.cfg.sliderMode || 'gt'
     this.#emit('slider', `需要滑动验证 (方式: ${mode})`, { url })
     this.logger('warn', `[登录] 需要滑动验证 (方式: ${mode}): ${url}`)
     switch (mode) {
       case 'txhelper':
         this.#sliderViaTxHelper(url)
         return
-      case 'gt':
-        this.#sliderViaGT(url)
-        return
-      case 'pages':
-        this.#sliderViaPages(url)
-        return
       case 'manual':
         this.#sliderViaTicketFile()
         return
-      default: // auto
-        // 通道1: txhelper 请求码 (仅适用于 ssl.captcha.qq.com 类滑块链接)
-        if (url.includes('ssl.captcha.qq.com')) this.#sliderViaTxHelper(url)
-        // 通道2: GT 网页验证 (通用: 浏览器打开服务端页面完成滑动)
+      default: // gt
         this.#sliderViaGT(url)
-        // 通道3: 自建 Pages 公网验证码页 (配置了 captchaBase 时)
-        this.#sliderViaPages(url)
-        // 通道4: 手动 ticket 文件 (通用兜底)
-        this.#sliderViaTicketFile()
     }
   }
 
   /**
    * NT 协议滑动验证专用通道 (对齐 TRSS Yunzai-ICQQ-Plugin):
-   * 服务端 CapNT.928100.xyz 渲染腾讯下发的 NT 验证链接完成滑动,
-   * 客户端轮询 captcha-nt-api.928100.xyz 获取 ticket + randstr 后提交
+   * 先检测候选渲染域名可达性 (captcha.928100.xyz 现役 / CapNT.928100.xyz 旧域名),
+   * 用首个可达域名渲染腾讯下发的 NT 验证链接完成滑动,
+   * 客户端双端点轮询 ticket + randstr 后提交.
+   * 注: 渲染站当前把 ticket 提交到 captcha-api-cf.928100.xyz (Cloudflare 后端),
+   * captcha-nt-api.928100.xyz (EdgeOne 后端) 为旧渲染站使用, 两片数据不互通, 故全部轮询.
    */
   async #sliderViaCapNT (url: string) {
     const uin = String(this.cfg.uin ?? '')
@@ -341,26 +332,47 @@ export class IcqqBot extends BaseBot {
       this.logger('warn', `[登录] 请打开链接完成滑动验证: ${url}`)
       return
     }
-    const api = `https://captcha-nt-api.928100.xyz/?key=${uin}`
+    const apiBases = ['https://captcha-api-cf.928100.xyz', 'https://captcha-nt-api.928100.xyz']
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
-    // 轮询验证服务
+    // 双端点轮询验证服务: 任一端点返回数据即用 (残留 ticket 也算, 轮询阶段会拿到)
     const getTicket = async (): Promise<any> => {
-      try {
-        return await (await gf(api)).json()
-      } catch (err: any) {
-        this.logger('error', `[登录] 验证服务请求失败: ${err?.message ?? err}`)
-        return null
+      for (const base of apiBases) {
+        try {
+          const res = await (await gf(`${base}/?key=${uin}`)).json()
+          if (res && typeof res === 'object') return res
+        } catch { /* 单端点失败继续下一个 */ }
       }
+      return null
     }
     try {
       // 等待验证服务就绪 (TRSS 逻辑: status=="0" = 无进行中会话, 可开始新验证)
       for (let i = 0; i < 20; i++) {
         const res = await getTicket()
-        if (res?.status === '0') break
+        if (res?.status === '0' || res?.ticket) break
         await sleep(3000)
       }
+      // 候选渲染域名按序检测可达性 (captcha.928100.xyz 为现役, CapNT.928100.xyz 为旧域名, 可能已失效)
+      const pickRenderBase = async (): Promise<string | null> => {
+        const hosts = ['https://captcha.928100.xyz', 'https://CapNT.928100.xyz']
+        for (const base of hosts) {
+          try {
+            const ctrl = new AbortController()
+            const timer = setTimeout(() => ctrl.abort(), 5000)
+            try {
+              const r = await gf(base, { method: 'GET', redirect: 'follow', signal: ctrl.signal })
+              if (r && typeof r.status === 'number' && r.status >= 200 && r.status < 500) return base
+            } finally { clearTimeout(timer) }
+          } catch { /* 该域名不可达, 尝试下一个 */ }
+        }
+        return null
+      }
       let capUrl = url
-      try { capUrl = `https://CapNT.928100.xyz?${new URL(url).searchParams.toString()}` } catch { /* 链接格式异常则直接用原链接 */ }
+      try {
+        const base = await pickRenderBase()
+        const query = new URL(url).searchParams.toString()
+        capUrl = base ? `${base}?${query}` : url
+        if (!base) this.logger('warn', '[登录] CapNT 渲染服务均不可达, 直接使用腾讯下发原链接')
+      } catch { /* 链接格式异常则直接用原链接 */ }
       this.#emit('slider', '需要滑动验证 (NT 协议)', { message: '请点击打开链接，在新窗口完成滑动', url: capUrl })
       this.logger('warn', `[登录] 请打开链接完成滑动验证: ${capUrl}`)
       // 轮询 ticket (对齐 TRSS: 每 3s 一次, 上限 60 次 = 3 分钟; 登录超时兜底 10 分钟)
@@ -368,8 +380,8 @@ export class IcqqBot extends BaseBot {
       for (let i = 0; i < 60; i++) {
         await sleep(3000)
         const res = await getTicket()
-        if (res?.status !== '0' && res?.ticket && res?.randstr) {
-          ticket = `${res.ticket},${res.randstr}`
+        if (res?.ticket) {
+          ticket = res.randstr ? `${res.ticket},${res.randstr}` : res.ticket
           break
         }
       }
@@ -508,50 +520,7 @@ export class IcqqBot extends BaseBot {
     } catch { /* 不可用则忽略 */ }
   }
 
-  /**
-   * 通道3: 自建 Cloudflare Pages 公网验证码处理页 —
-   * bot 把滑块链接注册到 Pages 服务, 推送处理页链接给用户;
-   * 用户在任意设备打开页面完成滑动并提交 ticket, bot 轮询取走后继续登录。
-   */
-  async #sliderViaPages (url: string) {
-    const base = (this.cfg.captchaBase || '').trim().replace(/\/+$/, '')
-    if (!base) return
-    const gf = (globalThis as any).fetch
-    if (typeof gf !== 'function') return
-    const uin = String(this.cfg.uin ?? '')
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (this.cfg.captchaToken) headers['Authorization'] = `Bearer ${this.cfg.captchaToken}`
-    try {
-      const res = await gf(`${base}/api/task`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ key: uin, url }),
-      })
-      if (!res.ok) {
-        this.logger('error', `[登录] 验证码服务注册失败: HTTP ${res.status}`)
-        return
-      }
-    } catch (err: any) {
-      this.logger('error', `[登录] 验证码服务注册失败: ${err?.message ?? err}`)
-      return
-    }
-    const page = `${base}/?key=${encodeURIComponent(uin)}`
-    this.#emit('slider', '需要滑动验证 (Pages 公网页)', { message: '请点击打开链接，在新窗口完成滑动', url: page })
-    this.logger('warn', `[登录] 请打开链接完成滑动验证: ${page}`)
-    for (let i = 0; i < 120; i++) { // 最多 6 分钟
-      await new Promise(r => setTimeout(r, 3000))
-      try {
-        const res = await (await gf(`${base}/api/task/${encodeURIComponent(uin)}`)).json()
-        if (res?.ticket) {
-          const ticket = res.randstr ? `${res.ticket},${res.randstr}` : res.ticket
-          this.logger('info', '[登录] 已获取ticket')
-          return this.#submitSlider(ticket)
-        }
-      } catch { /* 单次轮询失败忽略 */ }
-    }
-  }
-
-  /** 通道4: 手动兜底 — 轮询等待 ticket 文件 (用户完成验证后将 ticket,randstr 写入) */
+  /** 通道3: 手动兜底 — 轮询等待 ticket 文件 (用户完成验证后将 ticket,randstr 写入) */
   async #sliderViaTicketFile () {
     const dirPath = this.#dataDir
     const file = path.join(dirPath, 'slider.ticket')

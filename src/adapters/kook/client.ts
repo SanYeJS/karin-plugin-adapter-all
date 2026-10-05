@@ -53,7 +53,7 @@ export class Client {
   #axios: AxiosInstance
 
   constructor (cfg: BotConfig) {
-    const baseURL = (cfg.kookApi || 'https://www.kookapp.cn/api/v3').replace(/\/+$/, '')
+    const baseURL = 'https://www.kookapp.cn/api/v3'
     this.#axios = axios.create({
       baseURL,
       headers: { Accept: 'application/json' },

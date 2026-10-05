@@ -25,7 +25,7 @@ import type {
   GetAiCharactersResponse,
 } from 'node-karin'
 /** SDK版本 用作适配器初始版本 */
-import { version } from '@snowluma/sdk/package.json'
+import snowlumaPkg from '@snowluma/sdk/package.json' with { type: 'json' }
 import { createOneBot11Transport } from './transport'
 import { OneBot11BaseBot } from './base'
 import type { BotConfig } from '../base'
@@ -64,7 +64,7 @@ export class SnowLumaBot extends OneBot11BaseBot<any> {
       this.sdkMode = false
     }
     this.adapter.name = 'SnowLuma'
-    this.adapter.version = version
+    this.adapter.version = snowlumaPkg.version
     this.adapter.protocol = 'snowluma'
     this.events()
   }

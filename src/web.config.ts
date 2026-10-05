@@ -5,7 +5,7 @@ import { WEB_PREFIX } from '@/utils/config'
 /**
  * 自定义页面模式: 不使用 Karin 内置组件, 由插件自带的 Next.js 配置页面提供服务
  * 生产环境: 同源路径 /adapter-all/ (next 静态导出产物由 src/server.ts 同源托管)
- * 开发环境: next dev 地址, 可在配置面板顶栏填入 Karin 后端地址联调
+ * 开发环境: next dev 地址 (dev 的 rewrites 已把插件 API 代理到本地 Karin 后端)
  */
 export default defineConfig({
   info: {
@@ -19,7 +19,7 @@ export default defineConfig({
   page: {
     url:
       process.env.NODE_ENV === 'development'
-        ? `http://localhost:4111${WEB_PREFIX}/?host=http://localhost:${process.env.HTTP_PORT ?? 7777}`
+        ? `http://localhost:4111${WEB_PREFIX}/`
         : `${WEB_PREFIX}/`,
     title: '多协议适配器配置',
     description: '使用插件自带 Next.js 配置页面管理 Bot 连接, 保存后自动热更新生效',
