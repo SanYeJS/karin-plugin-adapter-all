@@ -4,10 +4,12 @@ name: Preview Publish # PR 自动发布预览包到 pkg.pr.new 并评论安装�
 on:
   pull_request:
     types: [opened, reopened, synchronize]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # push 到 main 时在 commit 下发预览包评论
   pull-requests: write
 
 jobs:
@@ -69,3 +71,36 @@ jobs:
           comment-tag: preview-packages
           mode: upsert
           reactions: rocket
+
+      # push 到 main / 手动触发: 无 PR 可评论, 改为在对应 commit 下评论 (含标记, 重复运行时覆盖更新)
+      - name: Commit 评论
+        if: github.event_name != 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '<!-- preview-packages -->'
+            const body = [
+              '## 📦 预览包已发布',
+              '',
+              `- **提交:** [\`${{ steps.publish.outputs.short_sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})`,
+              '- **安装命令:**',
+              '',
+              '```bash',
+              '${{ steps.publish.outputs.install_cmd }}',
+              '```',
+              '',
+              tag,
+            ].join('\n')
+            const { data: comments } = await github.rest.repos.listCommentsForCommit({
+              owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha,
+            })
+            const existing = comments.find(c => c.body.includes(tag))
+            if (existing) {
+              await github.rest.repos.updateCommitComment({
+                owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body,
+              })
+            } else {
+              await github.rest.repos.createCommitComment({
+                owner: context.repo.owner, repo: context.repo.repo, commit_sha: context.sha, body,
+              })
+            }
