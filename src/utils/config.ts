@@ -22,13 +22,35 @@ export const WEB_PREFIX = '/adapter-all'
 copyConfigSync(dir.defConfigDir, dir.ConfigDir, ['.json'])
 
 /**
+ * @description 配置文件兜底初始化:
+ * copyConfigSync 在部分发布环境 (npm 包/热更目录) 未能落盘配置时,
+ * 直接从插件包模板补齐, 模板也缺失时写入空配置, 避免首次启动 ENOENT
+ */
+const ensureConfigFile = () => {
+  const file = `${dir.ConfigDir}/config.json`
+  if (fs.existsSync(file)) return
+  fs.mkdirSync(dir.ConfigDir, { recursive: true })
+  const template = `${dir.defConfigDir}/config.json`
+  if (fs.existsSync(template)) {
+    fs.copyFileSync(template, file)
+  } else {
+    fs.writeFileSync(file, JSON.stringify({ bots: [] }, null, 2))
+  }
+}
+ensureConfigFile()
+
+/**
  * @description 配置文件
  * force 强制重读: requireFileSync 默认缓存 300 秒且命中会续期,
  * 否则热更新/网页面板保存后读到的仍是旧配置
  */
 export const config = (): Config => {
+  // 每次读取前兜底 (用户可能手动删过 @karinjs 下的配置)
+  ensureConfigFile()
   const cfg = requireFileSync(`${dir.ConfigDir}/config.json`, { force: true })
-  const def = requireFileSync(`${dir.defConfigDir}/config.json`)
+  // 插件包模板容错 (异常发布场景缺失时不阻塞启动)
+  const defFile = `${dir.defConfigDir}/config.json`
+  const def = fs.existsSync(defFile) ? requireFileSync(defFile) : {}
   return { ...def, ...cfg }
 }
 
