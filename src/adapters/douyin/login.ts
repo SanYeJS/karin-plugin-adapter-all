@@ -132,6 +132,8 @@ async function runLogin (session: DouyinLoginSession): Promise<void> {
         session.statusText = '需要安全验证，请在面板内完成'
       },
       onVerifyWays: raw => new Promise<string | undefined>(resolve => {
+        // 进入方式选择阶段 (前端仅 phase=mfa 且 ways 非空时渲染选择按钮)
+        session.phase = 'mfa'
         session.ways = raw.map((w: VerifyWay) => ({
           way: String(w.verify_way ?? ''),
           mobile: typeof w.mobile === 'string' ? w.mobile : undefined,
