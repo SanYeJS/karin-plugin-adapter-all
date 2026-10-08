@@ -5,12 +5,51 @@ import {
   parseGroupMessageId,
   segment,
 } from 'icqq'
-import type { ForwardMessage, GroupMessage, Message, MessageElem, PrivateMessage, Quotable, Sendable } from 'icqq'
+import type { ForwardMessage, GroupMessage, Message, MessageElem, PrivateMessage, PttElem, Quotable, Sendable, VideoElem } from 'icqq'
 import { Contact, Elements, segment as KarinSegment, SendElement } from 'node-karin'
 
 /** icqq bot 提供给段转换层的能力 (避免与主类循环依赖) */
 export interface ConvertCtx {
   getFileUrl (contact: Contact, fileId: string): Promise<string>
+  getVideoUrl (contact: Contact, elem: VideoElem): Promise<string | null>
+  getRecordUrl (contact: Contact, elem: PttElem): Promise<string | null>
+}
+
+/** 从收到的消息构造 karin Contact (供会话级 API 使用, 转发节点转换场景传 ForwardMessage 兜底私聊) */
+function contactOf (message: Message | ForwardMessage): Contact {
+  const msg = message as Message
+  if ((msg as GroupMessage).message_type === 'group') {
+    return {
+      scene: 'group',
+      peer: String((message as GroupMessage).group_id ?? message.user_id),
+      subId: {},
+      name: '',
+    } as Contact
+  }
+  return {
+    scene: 'friend',
+    peer: String((message as PrivateMessage).from_id ?? message.user_id),
+    subId: {},
+    name: '',
+  } as Contact
+}
+
+/** resid 归属场景缓存: 合并转发 resid 解包依赖群/私聊上下文, 收侧记录以便 getForwardMsg 选择正确的会话对象 */
+const residScene = new Map<string, { scene: 'group' | 'friend', peer: string }>()
+
+/** 记录 resid 场景 (容量 500, 淘汰最旧) */
+export function rememberResidScene (resId: string, contact: Contact): void {
+  if (!resId) return
+  residScene.set(resId, { scene: contact.scene === 'group' ? 'group' : 'friend', peer: contact.peer })
+  if (residScene.size > 500) {
+    const first = residScene.keys().next().value
+    if (first) residScene.delete(first)
+  }
+}
+
+/** 查询 resid 归属场景 */
+export function getResidScene (resId: string): { scene: 'group' | 'friend', peer: string } | undefined {
+  return residScene.get(resId)
 }
 
 /**
@@ -41,6 +80,11 @@ const encodeQuoteMsgId = (message: Message | ForwardMessage, q: Quotable): strin
 /** icqq 收到的消息 转 Karin Elements */
 export async function AdapterConvertKarin (message: Message | ForwardMessage, bot: ConvertCtx): Promise<Array<Elements>> {
   const elements: Array<Elements> = []
+  // 引用回复: icqq 把被引用消息放在 Message.source 而非元素数组, 这里补成 karin reply 元素
+  const source = (message as Message).source
+  if (source) {
+    elements.push(KarinSegment.reply(encodeQuoteMsgId(message, source)))
+  }
   for (const i of message.message) {
     switch (i.type) {
       case 'text':
@@ -66,12 +110,28 @@ export async function AdapterConvertKarin (message: Message | ForwardMessage, bo
           summary: i.summary,
         }))
         break
-      case 'record':
-        elements.push(KarinSegment.record(i.url || String(i.file)))
+      case 'record': {
+        // 带 fid 的语音走会话接口取真实地址 (NT 语音自行解码 protobuf 载荷), 否则用收侧自带 url
+        let url = i.url || ''
+        if (!url && i.fid) {
+          try { url = await bot.getRecordUrl(contactOf(message), i) || '' } catch { /* 退回原始 file */ }
+        }
+        elements.push(KarinSegment.record(url || String(i.file)))
         break
-      case 'video':
-        elements.push(KarinSegment.video(String(i.file), { width: i.width, height: i.height }))
+      }
+      case 'video': {
+        // NT 视频: 会话接口自行解码 protobuf 载荷取下载地址; 普通视频: fid + md5
+        let url = ''
+        if (i.fid) {
+          try { url = await bot.getVideoUrl(contactOf(message), i) || '' } catch { /* 退回原始 file */ }
+        }
+        elements.push(KarinSegment.video(url || String(i.file), {
+          width: i.width,
+          height: i.height,
+          name: i.name,
+        }))
         break
+      }
       case 'flash':
         elements.push(KarinSegment.image(i.url || String(i.file)))
         break
@@ -124,9 +184,14 @@ export async function AdapterConvertKarin (message: Message | ForwardMessage, bo
         break
       }
       case 'long_msg':
-      case 'multimsg':
-        elements.push(KarinSegment.text('[合并转发]'))
+      case 'multimsg': {
+        // 合并转发: element 携带 resid, 转为 karin longMsg 引用节点, 插件经 getForwardMsg(resid) 拉取真实节点;
+        // 记录归属场景 (群 resid 必须经对应会话对象解包)
+        const resId = String(i.resid)
+        rememberResidScene(resId, contactOf(message))
+        elements.push(KarinSegment.longMsg(resId))
         break
+      }
       case 'poke':
         elements.push(KarinSegment.text(`[戳一戳 ${i.text || ''}]`))
         break

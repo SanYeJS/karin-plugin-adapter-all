@@ -15,14 +15,14 @@ import type {
   UserInfo,
 } from 'node-karin'
 import { createClient, genGroupMessageId, parseGroupMessageId } from 'icqq'
-import type { Client, ForwardMessage, Message, MessageElem, Sendable } from 'icqq'
+import type { Client, ForwardMessage, Message, MessageElem, PttElem, Sendable, VideoElem } from 'icqq'
 import { segment } from 'icqq'
 import icqqPkg from 'icqq/package.json' with { type: 'json' }
 import { BaseBot } from '../base'
 import type { BotConfig } from '../base'
 import { clearLoginState, emitLoginEvent } from '@/utils/login-events'
 import type { LoginEvent } from '@/utils/login-events'
-import { AdapterConvertKarin, KarinConvertAdapter, parseQuotable } from './convert'
+import { AdapterConvertKarin, KarinConvertAdapter, parseQuotable, getResidScene } from './convert'
 import { dispatchMessage, dispatchNotice, dispatchRequest } from './event'
 
 /**
@@ -857,14 +857,22 @@ export class IcqqBot extends BaseBot {
       const msgs = await this.super.pickGroup(Number(contact.peer)).getChatHistory(seq > 0 ? seq : undefined, count)
       for (const m of msgs) result.push(await this.#toMessageResponse(m))
     } else {
-      const msgs = await this.super.pickFriend(Number(contact.peer)).getChatHistory(undefined, count)
+      const seq = typeof startMsgSeq === 'string' ? parseSeq(startMsgSeq) : startMsgSeq
+      const msgs = await this.super.pickFriend(Number(contact.peer)).getChatHistory(seq > 0 ? seq : undefined, count)
       for (const m of msgs) result.push(await this.#toMessageResponse(m))
     }
     return result
   }
 
   async getForwardMsg (resId: string): Promise<Array<MessageResponse>> {
-    const msgs = await this.super.getForwardMsg(resId)
+    // 群 resid 必须经 pickGroup 解包 (Client 版本固定私聊场景), 收侧已记录归属场景
+    const scene = getResidScene(resId)
+    const msgs = scene
+      ? await (scene.scene === 'group'
+        ? this.super.pickGroup(Number(scene.peer))
+        : this.super.pickFriend(Number(scene.peer))
+      ).getForwardMsg(resId)
+      : await this.super.getForwardMsg(resId)
     const result: MessageResponse[] = []
     for (const m of msgs) {
       result.push(await this.#toMessageResponse(m))
@@ -892,6 +900,11 @@ export class IcqqBot extends BaseBot {
 
   async setGroupAllMute (groupId: string, isBan: boolean): Promise<void> {
     await this.super.setGroupWholeBan(Number(groupId), isBan)
+  }
+
+  /** 发送群公告 (karin 无标准接口, icqq SDK Group.announce, 需管理员权限) */
+  async groupAnnounce (groupId: string, content: string): Promise<boolean> {
+    return this.super.pickGroup(Number(groupId)).announce(content)
   }
 
   async setGroupAdmin (groupId: string, targetId: string, isAdmin: boolean): Promise<void> {
@@ -1092,6 +1105,26 @@ export class IcqqBot extends BaseBot {
     }
     const res = await this.super.pickFriend(Number(contact.peer)).getFileUrl(fileId)
     return res
+  }
+
+  /** 获取视频播放地址 (NT 视频由会话接口自行解码 protobuf 载荷, 普通视频用 fid+md5) */
+  async getVideoUrl (contact: Contact, elem: VideoElem): Promise<string | null> {
+    if ((elem as VideoElem & { nt?: boolean }).nt) {
+      const target = contact.scene === 'group'
+        ? this.super.pickGroup(Number(contact.peer))
+        : this.super.pickFriend(Number(contact.peer))
+      return target.getNTVideoUrl(elem)
+    }
+    if (!elem.fid || !elem.md5) return null
+    return this.super.getVideoUrl(String(elem.fid), Buffer.from(String(elem.md5), 'base64'))
+  }
+
+  /** 获取语音播放地址 (带 fid 走会话 NT 接口, 否则用收侧自带 url) */
+  async getRecordUrl (contact: Contact, elem: PttElem): Promise<string | null> {
+    const target = contact.scene === 'group'
+      ? this.super.pickGroup(Number(contact.peer))
+      : this.super.pickFriend(Number(contact.peer))
+    return (await target.getPttUrl(elem)) ?? null
   }
 
   async uploadFile (contact: Contact, file: string, name: string, folder?: string): Promise<void> {
