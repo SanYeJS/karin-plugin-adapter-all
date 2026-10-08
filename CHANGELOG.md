@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.2.2...v1.3.0) (2026-10-08)
+
+
+### Features
+
+* **douyin:** add phase mark for verify way selection ([da082c6](https://github.com/SanYeJS/karin-plugin-adapter-all/commit/da082c687fe715210406dfe3caf249307c1d4e2a))
+
 ## [1.2.2](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.2.1...v1.2.2) (2026-10-08)
 
 
