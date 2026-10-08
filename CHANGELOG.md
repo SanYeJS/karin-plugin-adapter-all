@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.1.1...v1.2.0) (2026-10-08)
+
+
+### Features
+
+* **icqq:** 升级 icqq 依赖并新增音视频转发消息处理能力 ([210f6e9](https://github.com/SanYeJS/karin-plugin-adapter-all/commit/210f6e94cdd6b83703e2bafbabfe9e0d741fa081))
+
 ## [1.1.1](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.1.0...v1.1.1) (2026-10-08)
 
 
