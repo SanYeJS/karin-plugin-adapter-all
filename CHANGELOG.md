@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.2.1...v1.2.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* 适配器发送与富媒体链路稳定性修复 ([8925f19](https://github.com/SanYeJS/karin-plugin-adapter-all/commit/8925f19691360156e20925adbc3215a30600e6d9))
+
 ## [1.2.1](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.2.0...v1.2.1) (2026-10-08)
 
 
