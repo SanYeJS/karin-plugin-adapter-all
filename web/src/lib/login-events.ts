@@ -12,6 +12,7 @@ import { getStoredAuth } from './api'
 /** 登录验证阶段 (与后端 src/utils/login-events.ts 对应) */
 export type LoginPhase =
   | 'idle'
+  | 'qrcode'
   | 'slider'
   | 'auth'
   | 'device'
@@ -24,10 +25,12 @@ export type LoginPhase =
 export interface LoginEvent {
   /** 时间戳 (ms) */
   time: number
-  type: 'slider' | 'auth' | 'device' | 'submit' | 'progress' | 'relogin' | 'online' | 'offline' | 'failed' | 'timeout'
+  type: 'qrcode' | 'slider' | 'auth' | 'device' | 'submit' | 'progress' | 'relogin' | 'online' | 'offline' | 'failed' | 'timeout'
   title: string
   message?: string
   url?: string
+  /** 扫码登录二维码 (PNG dataURL, qrcode 事件提供) */
+  image?: string
   /** 设备锁验证可用手机号 (为空/缺失表示仅能网页验证) */
   phone?: string
 }
@@ -40,6 +43,8 @@ export interface LoginState {
   url?: string
   /** 设备锁验证可用手机号 (为空/缺失表示仅能网页验证) */
   phone?: string
+  /** 最近一次扫码登录二维码 (PNG dataURL, 上线后清空) */
+  qrcode?: string
   events: LoginEvent[]
 }
 

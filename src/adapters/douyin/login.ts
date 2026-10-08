@@ -21,7 +21,7 @@ export interface DouyinLoginSnapshot {
   /** 脱敏手机号（sms 验证时） */
   maskedMobile?: string
   /** 服务端可选二次验证方式（mfa 阶段且未选择时提供，选择后清空） */
-  ways?: Array<{ way: string; mobile?: string; smsContent?: string }>
+  ways?: Array<{ way: string; label?: string; mobile?: string; smsContent?: string }>
   /** 安全验证中心页地址（verifying 阶段提供，面板内 iframe 展示） */
   verifyUrl?: string
   /** 登录成功后的账号数字 uid */
@@ -45,6 +45,14 @@ interface WayWaiter {
   timer: NodeJS.Timeout
 }
 
+/** SDK 验证方式标识 → 中文展示（assist_ 前缀 = 安全手机, 未收录的原样显示） */
+const WAY_LABELS: Record<string, string> = {
+  assist_mobile_sms_verify: '安全手机短信验证',
+  mobile_sms_verify: '手机短信验证',
+  assist_mobile_up_sms_verify: '安全手机上行短信验证',
+  pwd_verify: '密码验证',
+}
+
 /** 进行中的扫码登录会话 */
 interface DouyinLoginSession {
   id: string
@@ -55,7 +63,8 @@ interface DouyinLoginSession {
   statusText?: string
   mfaKind?: 'sms' | 'password'
   maskedMobile?: string
-  ways?: Array<{ way: string; mobile?: string; smsContent?: string }>
+  /** 服务端可选二次验证方式（mfa 阶段且未选择时提供，选择后清空） */
+  ways?: Array<{ way: string; label?: string; mobile?: string; smsContent?: string }>
   wayWaiter?: WayWaiter
   verifyUrl?: string
   mfaWaiter?: MfaWaiter
@@ -136,6 +145,7 @@ async function runLogin (session: DouyinLoginSession): Promise<void> {
         session.phase = 'mfa'
         session.ways = raw.map((w: VerifyWay) => ({
           way: String(w.verify_way ?? ''),
+          label: WAY_LABELS[String(w.verify_way ?? '')] ?? String(w.verify_way ?? ''),
           mobile: typeof w.mobile === 'string' ? w.mobile : undefined,
           smsContent: typeof w.sms_content === 'string' ? w.sms_content : undefined,
         }))
@@ -239,6 +249,9 @@ export const selectDouyinVerifyWay = (id: string, way?: string): boolean => {
   if (!session || !waiter) return false
   clearTimeout(waiter.timer)
   session.wayWaiter = undefined
+  const label = WAY_LABELS[way ?? ''] ?? '默认优先级'
+  // SDK onMfa 回调触发后状态会被覆盖为验证码/密码输入提示
+  session.statusText = way ? `已选择「${label}」，等待验证信息...` : '使用默认方式，等待验证信息...'
   session.ways = undefined
   waiter.resolve(way || undefined)
   return true

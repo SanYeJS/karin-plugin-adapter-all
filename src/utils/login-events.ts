@@ -10,6 +10,7 @@ import { logger } from 'node-karin'
 /** 登录验证阶段 (WebUI 按此展示状态徽章) */
 export type LoginPhase =
   | 'idle'
+  | 'qrcode'
   | 'slider'
   | 'auth'
   | 'device'
@@ -23,13 +24,15 @@ export interface LoginEvent {
   /** 时间戳 (ms) */
   time: number
   /** 事件类型 */
-  type: 'slider' | 'auth' | 'device' | 'submit' | 'progress' | 'relogin' | 'online' | 'offline' | 'failed' | 'timeout'
+  type: 'qrcode' | 'slider' | 'auth' | 'device' | 'submit' | 'progress' | 'relogin' | 'online' | 'offline' | 'failed' | 'timeout'
   /** 标题 */
   title: string
   /** 补充说明 */
   message?: string
   /** 需要用户打开的验证链接 */
   url?: string
+  /** 扫码登录二维码 (PNG dataURL, qrcode 事件提供) */
+  image?: string
   /** 设备锁验证可用手机号 (为空/缺失表示仅能网页验证, 短信通道不可用) */
   phone?: string
 }
@@ -44,6 +47,8 @@ export interface LoginState {
   url?: string
   /** 设备锁验证可用手机号 (为空/缺失表示仅能网页验证) */
   phone?: string
+  /** 最近一次扫码登录二维码 (PNG dataURL, 上线后清空) */
+  qrcode?: string
   /** 最近事件 (最多保留 MAX_EVENTS 条) */
   events: LoginEvent[]
 }
@@ -59,6 +64,7 @@ const MAX_EVENTS = 30
 
 /** 事件类型 → 阶段推进 (未列出的事件类型不推进阶段) */
 const phaseOf: Partial<Record<LoginEvent['type'], LoginPhase>> = {
+  qrcode: 'qrcode',
   slider: 'slider',
   auth: 'auth',
   device: 'device',
@@ -98,6 +104,8 @@ export const emitLoginEvent = (uin: string, event: Omit<LoginEvent, 'time'>) => 
   state.events.push(full)
   if (state.events.length > MAX_EVENTS) state.events.splice(0, state.events.length - MAX_EVENTS)
   if (full.url) state.url = full.url
+  if (full.image) state.qrcode = full.image
+  if (full.type === 'online') state.qrcode = undefined
   if ('phone' in full) state.phone = full.phone || ''
   const phase = phaseOf[full.type]
   if (phase) state.phase = phase

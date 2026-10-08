@@ -107,7 +107,7 @@ export class IcqqBot extends BaseBot {
   }
 
   /** 上报登录验证事件到 WebUI (SSE 推送到网页面板) */
-  #emit (type: LoginEvent['type'], title: string, extra: { message?: string; url?: string; phone?: string } = {}) {
+  #emit (type: LoginEvent['type'], title: string, extra: { message?: string; url?: string; image?: string; phone?: string } = {}) {
     const uin = String(this.cfg.uin ?? this.super?.uin ?? '')
     emitLoginEvent(uin, { type, title, ...extra })
   }
@@ -192,6 +192,7 @@ export class IcqqBot extends BaseBot {
     client.on('system.offline.kickoff', (e: any) => {
       this.#online = false
       this.logger('warn', `[登出] 被服务器踢下线: ${e?.message || ''}`)
+      this.#emit('offline', '被服务器踢下线', { message: e?.message || '账号在别处登录或存在风控' })
       this.__unregisterBot()
       // icqq 对 kickoff 只 terminate 不安排重连, 需手动重新 login
       // (重新登录走 token 续登, 失效时 icqq 内部自动降级密码登录/触发验证流程)
@@ -273,6 +274,9 @@ export class IcqqBot extends BaseBot {
   #onQrcode (image: Buffer) {
     const dirPath = this.#dataDir
     const file = path.join(dirPath, `icqq-qrcode.png`)
+    // 二维码直接推送到 WebUI 面板展示 (dataURL), 参考扫码适配器体验
+    const dataUrl = `data:image/png;base64,${image.toString('base64')}`
+    this.#emit('qrcode', '等待扫码登录', { message: '请用手机 QQ 扫描二维码并确认登录', image: dataUrl })
     try {
       fs.mkdirSync(dirPath, { recursive: true })
       fs.writeFileSync(file, image)
@@ -545,6 +549,7 @@ export class IcqqBot extends BaseBot {
       this.#loginTimer = null
       if (this.#loginResolve) {
         this.#loginResolve = null
+        this.#emit('timeout', '登录超时', { message: `${Math.round(ms / 1000)} 秒内未完成登录, 已中止等待` })
         this.#loginReject?.(new Error('登录超时'))
       }
     }, ms).unref?.()
@@ -558,14 +563,19 @@ export class IcqqBot extends BaseBot {
   #scheduleRelogin (delayMs = 5000) {
     if (this.#stopped) return
     if (this.#loginRetryTimer) clearTimeout(this.#loginRetryTimer)
+    this.#emit('offline', '连接已断开', { message: `${delayMs / 1000} 秒后尝试重新登录...` })
     this.#loginRetryTimer = setTimeout(() => {
       this.#loginRetryTimer = null
       const c: any = this.super
       if (typeof c.login !== 'function' || c.isOnline()) return
       const uin = this.cfg.uin !== undefined && this.cfg.uin !== '' ? Number(this.cfg.uin) : undefined
       this.logger('warn', `[登录] 被踢下线, ${delayMs / 1000}秒后尝试重新登录...`)
+      this.#emit('relogin', '正在重新登录...', { message: 'token 失效时将自动降级密码登录' })
       const p: Promise<any> | undefined = this.cfg.password ? c.login(uin, this.cfg.password) : c.login(uin)
-      if (p?.catch) p.catch((err: any) => this.logger('error', `[登录] 重新登录失败: ${err?.message ?? err}`))
+      if (p?.catch) p.catch((err: any) => {
+        this.#emit('failed', '重新登录失败', { message: err?.message ?? String(err) })
+        this.logger('error', `[登录] 重新登录失败: ${err?.message ?? err}`)
+      })
     }, delayMs).unref?.()
   }
 
@@ -732,6 +742,7 @@ export class IcqqBot extends BaseBot {
         }
       })()
       this.logger('info', `[登录] 正在登录 ${uin ?? '(扫码)'} (${loginType})...`)
+      this.#emit('progress', '正在登录...', { message: `登录方式: ${loginType === 'password' ? '密码登录' : loginType === 'fast' ? '快速登录 (token)' : '扫码登录'}` })
       // login() 本身可能挂起(签名服务/网络请求无响应, icqq axios 无超时):
       // 超时兜底, 否则 start 永久 pending 会阻塞热更新与后续 boot
       const hangGuard = new Promise<never>((_, reject) => {
@@ -748,6 +759,8 @@ export class IcqqBot extends BaseBot {
         const qsign = this.#lastQsignError ? ` | ${this.#lastQsignError}` : ''
         this.logger('error', `[登录] 签名api异常: ${detail}${qsign}`)
       }
+      // 登录请求层失败 (签名服务/网络/请求无响应): system.login.error 未触发的场景在此兜底上报
+      if (!this.#online) this.#emit('failed', '登录失败', { message: err?.message ?? String(err) })
       if (this.#loginTimer) {
         clearTimeout(this.#loginTimer)
         this.#loginTimer = null

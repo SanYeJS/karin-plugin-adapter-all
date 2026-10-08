@@ -42,7 +42,7 @@ export default function DouyinLogin ({ onBound }: { onBound: (v: DouyinLoginResu
   const [phase, setPhase] = useState<Phase>('idle')
   const [mfaKind, setMfaKind] = useState<'sms' | 'password' | ''>('')
   const [maskedMobile, setMaskedMobile] = useState('')
-  const [ways, setWays] = useState<Array<{ way: string; mobile?: string; smsContent?: string }>>([])
+  const [ways, setWays] = useState<Array<{ way: string; label?: string; mobile?: string; smsContent?: string }>>([])
   const [verifyUrl, setVerifyUrl] = useState('')
   const [mfaCode, setMfaCode] = useState('')
   const sidRef = useRef('')
@@ -285,7 +285,7 @@ export default function DouyinLogin ({ onBound }: { onBound: (v: DouyinLoginResu
                     disabled={busy}
                     onClick={() => void pickWay(w.way)}
                   >
-                    {w.smsContent || (w.mobile ? `短信验证 (${w.mobile})` : w.way)}
+                    {w.smsContent || (w.label || w.way) + (w.mobile ? ` (${w.mobile})` : '')}
                   </Button>
                 ))}
               </div>

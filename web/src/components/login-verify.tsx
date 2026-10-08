@@ -15,6 +15,7 @@ const LOGIN_API_BASE = '/adapter-all/api/login'
 /** 各登录阶段的状态徽章文案与配色 */
 const PHASE_META: Record<LoginPhase, { label: string; className: string }> = {
   idle: { label: '空闲', className: 'bg-muted text-muted-foreground' },
+  qrcode: { label: '等待扫码', className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
   slider: { label: '待滑动验证', className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
   auth: { label: '待登录验证', className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
   device: { label: '设备锁验证', className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
@@ -116,6 +117,15 @@ export default function LoginVerifyPanel ({ uin }: { uin: string }) {
           </div>
           <p className='text-xs leading-relaxed text-muted-foreground/70'>
             若内嵌页面显示空白或「拒绝连接」，说明该验证站点禁止内嵌，请点击「新窗口打开」完成验证。
+          </p>
+        </div>
+      )}
+      {state.phase === 'qrcode' && state.qrcode && (
+        <div className='flex flex-col items-center gap-2 rounded-md border bg-background/60 p-3'>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={state.qrcode} alt='扫码登录二维码' className='size-48 rounded-md' />
+          <p className='text-center text-xs leading-relaxed text-muted-foreground/70'>
+            请使用手机 QQ 扫描二维码并确认登录
           </p>
         </div>
       )}
