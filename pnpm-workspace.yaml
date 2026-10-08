@@ -1,4 +1,4 @@
-packages: []
+﻿packages: []
 lockfile: false
 onlyBuiltDependencies:
   - "@karinjs/node-pty"
@@ -9,8 +9,6 @@ onlyBuiltDependencies:
   - puppeteer
   - sharp
   - sqlite3
-patchedDependencies:
-  douyin.ts@0.2.1: patches/douyin.ts@0.2.1.patch
 publicHoistPattern:
   - "*sqlite3*"
   - "*express*"

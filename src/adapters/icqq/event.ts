@@ -1,4 +1,4 @@
-import type { GroupMessageEvent, PrivateMessageEvent, FriendPokeEvent, GroupPokeEvent, GroupMuteEvent, GroupRecallEvent, FriendRecallEvent, MemberIncreaseEvent, MemberDecreaseEvent, GroupAdminEvent, GroupSignEvent, GroupTransferEvent, FriendRequestEvent, GroupRequestEvent, GroupInviteEvent } from '@icqqjs/icqq'
+import type { GroupMessageEvent, PrivateMessageEvent, FriendPokeEvent, GroupPokeEvent, GroupMuteEvent, GroupRecallEvent, FriendRecallEvent, MemberIncreaseEvent, MemberDecreaseEvent, GroupAdminEvent, GroupSignEvent, GroupTransferEvent, FriendRequestEvent, GroupRequestEvent, GroupInviteEvent } from 'icqq'
 import {
   contactFriend,
   contactGroup,

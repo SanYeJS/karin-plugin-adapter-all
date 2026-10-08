@@ -1,0 +1,66 @@
+name: Preview Publish # PR 自动发布预览包到 pkg.pr.new 并评论安装命令
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 安装依赖
+        run: pnpm install --no-frozen-lockfile
+
+      - name: 构建
+        run: pnpm build
+
+      # 发布预览包: 版本由 pkg.pr.new 按 commit 自动生成 (0.0.0-<sha>)
+      # fork PR 无发布权限, 失败不阻塞且评论中提示
+      - name: 发布预览包 (pkg.pr.new)
+        id: publish
+        continue-on-error: true
+        run: |
+          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          npx --yes pkg-pr-new publish --json output.json --comment=off --compact --packageManager=pnpm 2>&1 | tee pkg-output.txt
+          URL=$(grep -oE 'https://pkg\.pr\.new/[^[:space:]`]+' pkg-output.txt | head -n 1 || echo "")
+          if [ -n "$URL" ]; then
+            if [[ "$URL" =~ https://pkg\.pr\.new/[^/]+/[^/]+/([^/]+@.+) ]]; then
+              URL="https://pkg.pr.new/${BASH_REMATCH[1]}"
+            fi
+            echo "install_cmd=pnpm add ${URL} -w" >> "$GITHUB_OUTPUT"
+          else
+            echo "install_cmd=发布失败 (fork PR 不支持预览包), 请本地构建: pnpm build" >> "$GITHUB_OUTPUT"
+          fi
+
+      # PR 自动评论: 同一 PR 重复推送时 upsert 覆盖同一条评论, 不刷屏
+      - name: PR 评论
+        if: github.event_name == 'pull_request'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            ## 📦 预览包已发布
+
+            - **提交:** [`${{ steps.publish.outputs.short_sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+            - **安装命令:**
+
+            ```bash
+            ${{ steps.publish.outputs.install_cmd }}
+            ```
+          comment-tag: preview-packages
+          mode: upsert
+          reactions: rocket

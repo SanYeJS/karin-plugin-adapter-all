@@ -267,6 +267,8 @@ export interface DouyinLoginSnapshot {
   statusText?: string
   mfaKind?: 'sms' | 'password'
   maskedMobile?: string
+  /** 可选二次验证方式 (mfa 阶段且未选择时提供) */
+  ways?: Array<{ way: string; mobile?: string; smsContent?: string }>
   /** 安全验证中心页地址 (verifying 阶段, 面板内 iframe 展示) */
   verifyUrl?: string
   uid?: string
@@ -277,6 +279,8 @@ export interface DouyinLoginSnapshot {
 export const douyinLoginStart = () => postApi<{ id: string }>('/douyin/login/start')
 export const douyinLoginStatus = (sid: string) => postApi<DouyinLoginSnapshot>('/douyin/login/status', { sid })
 export const douyinLoginMfa = (sid: string, code: string) => postApi<null>('/douyin/login/mfa', { sid, code })
+/** 选择二次验证方式 (way 空 = 使用默认优先级) */
+export const douyinLoginWay = (sid: string, way: string) => postApi<null>('/douyin/login/mfa', { sid, way })
 export const douyinLoginCancel = (sid: string) => postApi<null>('/douyin/login/cancel', { sid })
 
 /* ==================== 微信 Claw (wxoc) 扫码登录 ==================== */

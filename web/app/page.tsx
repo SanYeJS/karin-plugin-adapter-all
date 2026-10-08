@@ -12,6 +12,7 @@ import {
 } from '@/lib/api'
 import BotCard from '@/components/bot-card'
 import AuthGate from '@/components/auth-gate'
+import { Avatar, ListSkeleton, PageSkeleton } from '@/components/skeleton'
 import { Accordion } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -185,7 +186,7 @@ export default function ConfigPage () {
     }
     // ICQQ 未安装时直接拦截, 引导先装包 (后端 POST 也有兜底校验)
     if (items.some((it) => it.form.enable && it.form.protocol === 'icqq') && !icqqAvailable) {
-      toast.error('ICQQ 机器人需要安装 @icqqjs/icqq (勿装 npm 老包 icqq@0.6.10)，安装命令见 ICQQ 卡片提示，装好后保存即生效')
+      toast.error('ICQQ 机器人需要安装 icqq (@icqqjs/icqq)，安装命令见 ICQQ 卡片提示，装好后保存即生效')
       return
     }
     setSaving(true)
@@ -248,14 +249,8 @@ export default function ConfigPage () {
   }
 
   if (authed !== true) {
-    // 校验本地凭证时短暂空白, 未登录则展示登录页
-    if (authed === null) {
-      return (
-        <div className='flex h-screen items-center justify-center text-sm text-muted-foreground'>
-          正在加载配置...
-        </div>
-      )
-    }
+    // 校验本地凭证期间展示与真实布局同构的整页骨架, 未登录则展示登录页
+    if (authed === null) return <PageSkeleton />
     return (
       <AuthGate
         onSuccess={() => setAuthed(true)}
@@ -272,14 +267,10 @@ export default function ConfigPage () {
           collapsed ? 'w-14' : 'w-60',
         )}
       >
-        {/* GitHub 头像与名称 */}
+        {/* GitHub 头像与名称 (图片加载完成前展示圆形骨架) */}
         <div className={cn('flex items-center gap-3 p-3', collapsed && 'justify-center px-0')}>
           <a href={GITHUB.url} target='_blank' rel='noreferrer' className='shrink-0' title='GitHub'>
-            <img
-              src={GITHUB.avatar}
-              alt={GITHUB.name}
-              className='size-9 rounded-full ring-1 ring-border'
-            />
+            <Avatar src={GITHUB.avatar} alt={GITHUB.name} className='size-9 ring-1 ring-border' />
           </a>
           {!collapsed && (
             <div className='min-w-0'>
@@ -359,97 +350,104 @@ export default function ConfigPage () {
           </div>
         ) : (
           <div className='mx-auto max-w-[1440px] px-4 py-6 sm:px-6'>
-            <div className='flex flex-wrap items-center justify-between gap-3 pb-4'>
-              <p className='text-sm text-muted-foreground'>
-                管理适配器下的 Bot 连接，共{' '}
-                <span className='font-medium text-foreground'>{items.length}</span> 个配置
-                {validBots.length < items.length && (
-                  <>，有效 <span className='font-medium text-foreground'>{validBots.length}</span> 个</>
-                )}
-              </p>
-              <div className='flex items-center gap-2'>
-                <Button
-                  variant='outline'
-                  size='icon'
-                  title='重新加载配置 (丢弃未保存的修改)'
-                  disabled={refreshing}
-                  onClick={() => void refresh()}
-                >
-                  <RotateCw className={cn(refreshing && 'animate-spin')} />
-                </Button>
-                <Button variant='outline' onClick={() => addItemAndLocate()}>
-                  <Plus /> 添加连接
-                </Button>
-                <Button onClick={save} disabled={saving}>
-                  <Save /> {saving ? '保存中...' : '保存配置'}
-                </Button>
-              </div>
-            </div>
-
-            {/* 顶部协议分类 tabs */}
-            <div className='pb-4'>
-              <div className='inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-muted p-1'>
-                {FILTER_TABS.map(({ key, label }) => {
-                  const count = items.filter((it) => it.form.protocol === key).length
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setFilter(key)}
-                      className={cn(
-                        'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                        filter === key
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
-                    >
-                      {label}
-                      <span
-                        className={cn(
-                          'rounded-full px-1.5 text-xs tabular-nums',
-                          filter === key ? 'bg-primary text-primary-foreground' : 'bg-border text-muted-foreground',
-                        )}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {filteredItems.length === 0 ? (
-              <div className='flex flex-col items-center gap-4 rounded-xl border border-dashed py-24'>
-                <p className='text-sm text-muted-foreground'>
-                  {items.length === 0 ? '暂无连接配置' : '该分类下暂无连接'}
-                </p>
-                <Button onClick={() => addItemAndLocate()}>
-                  <Plus /> 添加连接
-                </Button>
-              </div>
+            {loading ? (
+              // 首次拉取配置: 统计文案/tabs/卡片网格专属骨架
+              <ListSkeleton />
             ) : (
-              <Accordion
-                type='multiple'
-                className={cn(
-                  'grid grid-cols-1 items-start gap-4',
-                  filteredItems.length > 1 && 'md:grid-cols-2 2xl:grid-cols-3',
+              <>
+                <div className='flex flex-wrap items-center justify-between gap-3 pb-4'>
+                  <p className='text-sm text-muted-foreground'>
+                    管理适配器下的 Bot 连接，共{' '}
+                    <span className='font-medium text-foreground'>{items.length}</span> 个配置
+                    {validBots.length < items.length && (
+                      <>，有效 <span className='font-medium text-foreground'>{validBots.length}</span> 个</>
+                    )}
+                  </p>
+                  <div className='flex items-center gap-2'>
+                    <Button
+                      variant='outline'
+                      size='icon'
+                      title='重新加载配置 (丢弃未保存的修改)'
+                      disabled={refreshing}
+                      onClick={() => void refresh()}
+                    >
+                      <RotateCw className={cn(refreshing && 'animate-spin')} />
+                    </Button>
+                    <Button variant='outline' onClick={() => addItemAndLocate()}>
+                      <Plus /> 添加连接
+                    </Button>
+                    <Button onClick={save} disabled={saving}>
+                      <Save /> {saving ? '保存中...' : '保存配置'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 顶部协议分类 tabs */}
+                <div className='pb-4'>
+                  <div className='inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-muted p-1'>
+                    {FILTER_TABS.map(({ key, label }) => {
+                      const count = items.filter((it) => it.form.protocol === key).length
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setFilter(key)}
+                          className={cn(
+                            'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                            filter === key
+                              ? 'bg-background text-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          {label}
+                          <span
+                            className={cn(
+                              'rounded-full px-1.5 text-xs tabular-nums',
+                              filter === key ? 'bg-primary text-primary-foreground' : 'bg-border text-muted-foreground',
+                            )}
+                          >
+                            {count}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {filteredItems.length === 0 ? (
+                  <div className='flex flex-col items-center gap-4 rounded-xl border border-dashed py-24'>
+                    <p className='text-sm text-muted-foreground'>
+                      {items.length === 0 ? '暂无连接配置' : '该分类下暂无连接'}
+                    </p>
+                    <Button onClick={() => addItemAndLocate()}>
+                      <Plus /> 添加连接
+                    </Button>
+                  </div>
+                ) : (
+                  <Accordion
+                    type='multiple'
+                    className={cn(
+                      'grid grid-cols-1 items-start gap-4',
+                      filteredItems.length > 1 && 'md:grid-cols-2 2xl:grid-cols-3',
+                    )}
+                  >
+                    {filteredItems.map((it, i) => (
+                      <BotCard
+                        key={it.id}
+                        value={String(it.id)}
+                        index={i}
+                        form={it.form}
+                        icqqAvailable={icqqAvailable}
+                        showErrors={showErrors}
+                        onChange={(patch) => patchItem(it.id, patch)}
+                        onRemove={() => removeItem(it.id)}
+                        onQrBound={(v) => void handleQrBound(it.id, v)}
+                        onDouyinBound={(v) => void handleLoginBound(it.id, 'douyin', v)}
+                        onWxocBound={(v) => void handleLoginBound(it.id, 'wxoc', v)}
+                      />
+                    ))}
+                  </Accordion>
                 )}
-              >
-                {filteredItems.map((it, i) => (
-                  <BotCard
-                    key={it.id}
-                    value={String(it.id)}
-                    index={i}
-                    form={it.form}
-                    icqqAvailable={icqqAvailable}
-                    showErrors={showErrors}
-                    onChange={(patch) => patchItem(it.id, patch)}
-                    onRemove={() => removeItem(it.id)}
-                    onQrBound={(v) => void handleQrBound(it.id, v)}
-                    onDouyinBound={(v) => void handleLoginBound(it.id, 'douyin', v)}
-                    onWxocBound={(v) => void handleLoginBound(it.id, 'wxoc', v)}
-                  />
-                ))}
-              </Accordion>
+              </>
             )}
           </div>
         )}

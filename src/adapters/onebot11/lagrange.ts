@@ -134,7 +134,6 @@ export class LagrangeBot extends OneBot11BaseBot<OneBot11Transport> {
       // 仅当身份校验通过(verified)后才注册: 防止误配 bot 被 WS 自动重连后幽灵注册
       if (this.verified) this.register()
       this.adapter.connectTime = Date.now()
-      logger.bot('info', this.selfId, `[Lagrange] 连接成功: ${this.adapter.address}`)
     })
     raw.on('close', () => this.unregister())
     raw.on('error', (e: any) => logger.warn(`[Lagrange] 连接错误: ${e?.message || e}`))

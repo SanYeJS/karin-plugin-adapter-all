@@ -67,7 +67,6 @@ export class OneBot11StdBot extends OneBot11BaseBot<OneBot11Transport> {
       // 仅当身份探测完成(verified)后才注册: 防止重连后幽灵注册
       if (this.verified) this.register()
       this.adapter.connectTime = Date.now()
-      logger.bot('info', this.selfId, `[OneBot11] 连接成功: ${this.adapter.address}`)
     })
     raw.on('close', () => this.unregister())
     raw.on('error', (e: any) => logger.warn(`[OneBot11] 连接错误: ${e?.message || e}`))
@@ -80,10 +79,8 @@ export class OneBot11StdBot extends OneBot11BaseBot<OneBot11Transport> {
   private async probe () {
     try {
       const info: any = await this.call('get_version_info')
-      const appName = String(info.app_name ?? '').toLowerCase()
       const version = String(info.app_version ?? info.version ?? '')
       if (version) this.adapter.version = version
-      logger.info(`[OneBot11] 已连接: ${appName || '未知协议端'} v${version || '-'} @ ${this.adapter.address}`)
     } catch {
       /* 协议端不支持 get_version_info 时忽略, 不影响接入 */
     }

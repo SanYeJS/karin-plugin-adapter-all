@@ -452,9 +452,9 @@ export default function BotCard ({ value, index, form, icqqAvailable, showErrors
       <AccordionContent className='px-4 pt-4'>
         {isIcqq && !icqqAvailable && (
           <div className='mb-4 flex flex-col gap-1.5 rounded-lg border border-amber-300/70 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200'>
-            <p className='font-medium'>需安装 @icqqjs/icqq，未安装时无法保存。</p>
+            <p className='font-medium'>需安装 icqq (@icqqjs/icqq)，未安装时无法保存。</p>
             <p className='font-mono break-all' dir='ltr'>
-              npm config set @icqqjs:registry=https://npm.pkg.github.com && npm login --scope=@icqqjs --auth-type=legacy --registry=https://npm.pkg.github.com && pnpm add @icqqjs/icqq@1.12.3 -w
+              pnpm add icqq@npm:@icqqjs/icqq -w
             </p>
             <p>装好后回到本页保存即生效，无需重启。</p>
           </div>

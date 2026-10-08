@@ -26,6 +26,8 @@ export const options: UserConfig = {
       /^node-karin\//,
       '@icqqjs/icqq',
       /^@icqqjs\/icqq\//,
+      'icqq',
+      /^icqq\//,
     ],
   },
   shims: true,

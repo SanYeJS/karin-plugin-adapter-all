@@ -14,10 +14,10 @@ import type {
   SendMsgResults,
   UserInfo,
 } from 'node-karin'
-import { createClient, genGroupMessageId, parseGroupMessageId } from '@icqqjs/icqq'
-import type { Client, ForwardMessage, Message, MessageElem, Sendable } from '@icqqjs/icqq'
-import { segment } from '@icqqjs/icqq'
-import icqqPkg from '@icqqjs/icqq/package.json' with { type: 'json' }
+import { createClient, genGroupMessageId, parseGroupMessageId } from 'icqq'
+import type { Client, ForwardMessage, Message, MessageElem, Sendable } from 'icqq'
+import { segment } from 'icqq'
+import icqqPkg from 'icqq/package.json' with { type: 'json' }
 import { BaseBot } from '../base'
 import type { BotConfig } from '../base'
 import { clearLoginState, emitLoginEvent } from '@/utils/login-events'
@@ -1059,7 +1059,7 @@ export class IcqqBot extends BaseBot {
   }
 
   async getGroupAvatarUrl (groupId: string, size?: 0 | 40 | 100 | 140, _history?: number): Promise<string> {
-    return `https://p.qlogo.cn/gh/${groupId}/${groupId}/${size}`
+    return `https://p.qlogo.cn/gh/${groupId}/${groupId}/${size || 0}`
   }
 
   async pokeUser (contact: Contact, targetId: string, count: number = 1): Promise<boolean> {

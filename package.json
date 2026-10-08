@@ -68,16 +68,18 @@
     "registry": "https://registry.npmjs.org"
   },
   "dependencies": {
+    "@karinjs/adapter-qqbot": "^3.3.1",
     "@karinjs/plugin-basic": "^1.4.14",
     "@karinjs/plugin-shotium": "^0.3.6",
     "@saltify/milky-types": "^1.2.2",
     "@snowluma/sdk": "^1.14.20",
     "@ys7zts/karin-plugin-nekostatus": "^1.4.13",
-    "douyin.ts": "0.2.1",
+    "douyin.ts": "0.6.3",
+    "icqq": "npm:@icqqjs/icqq",
+    "karin-plugin-botweb": "^1.0.15",
+    "karin-plugin-ling": "^1.34.8",
+    "karin-plugin-qbot": "^1.0.11",
     "qrcode": "^1.5.4",
     "ws": "npm:@karinjs/ws@1.0.4"
-  },
-  "optionalDependencies": {
-    "@icqqjs/icqq": "1.12.3"
   }
 }

@@ -4,8 +4,8 @@ import {
   parseDmMessageId,
   parseGroupMessageId,
   segment,
-} from '@icqqjs/icqq'
-import type { ForwardMessage, GroupMessage, Message, MessageElem, PrivateMessage, Quotable, Sendable } from '@icqqjs/icqq'
+} from 'icqq'
+import type { ForwardMessage, GroupMessage, Message, MessageElem, PrivateMessage, Quotable, Sendable } from 'icqq'
 import { Contact, Elements, segment as KarinSegment, SendElement } from 'node-karin'
 
 /** icqq bot 提供给段转换层的能力 (避免与主类循环依赖) */

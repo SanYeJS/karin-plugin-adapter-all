@@ -29,17 +29,13 @@ pnpm add karin-plugin-adapter-all -w
 
 然后在 Karin 根目录启动，插件会自动注册。
 
-> 安装时可能会看到一条 `@icqqjs/icqq` 的 404/401 警告，这是正常的（见下方「ICQQ 协议（可选）」），不影响安装和其他适配器使用。
+### ICQQ 协议
 
-### ICQQ 协议（可选）
-
-`@icqqjs/icqq` 发布在 GitHub Packages（需 `read:packages` 权限），因此作为**可选依赖**：未安装时 ICQQ 适配器自动跳过，其余适配器不受影响；只有当你需要连接 ICQQ 协议时，一条命令即可（写入用户级 `.npmrc`，无需手动编辑项目根目录配置）：
+icqq 依赖包名 `icqq`（npm 别名指向 `@icqqjs/icqq`），安装本插件时已自动装好；若被手动移除，一条命令重装：
 
 ```bash
-npm config set @icqqjs:registry=https://npm.pkg.github.com && npm login --scope=@icqqjs --auth-type=legacy --registry=https://npm.pkg.github.com && pnpm add @icqqjs/icqq@1.12.3 -w
+pnpm add icqq@npm:@icqqjs/icqq -w
 ```
-
-> 请勿安装 npm 上的老包 `icqq@0.6.10`，它与 `@icqqjs/icqq` 是两个不同的项目、API 完全不同。
 
 装好后无需重启，在配置面板添加 ICQQ 机器人并保存即可热更新生效。
 

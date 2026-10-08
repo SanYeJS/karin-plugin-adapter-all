@@ -20,8 +20,8 @@ const factories: Partial<Record<Protocol, (cfg: BotConfig) => BaseBot<any> | und
   wxoc: createWxocBot,
 }
 
-/** GitHub Packages 认证 + 安装 @icqqjs/icqq (日志提示与 server 保存拦截共用) */
-export const ICQQ_INSTALL_CMD = 'npm config set @icqqjs:registry=https://npm.pkg.github.com && npm login --scope=@icqqjs --auth-type=legacy --registry=https://npm.pkg.github.com && pnpm add @icqqjs/icqq@1.12.3 -w'
+/** 安装 icqq (npm 别名指向 @icqqjs/icqq) (日志提示与 server 保存拦截共用) */
+export const ICQQ_INSTALL_CMD = 'pnpm add icqq@npm:@icqqjs/icqq -w'
 
 /** 动态加载 icqq 适配器; 未安装 / 装错包 / 版本过低时给出可操作提示并跳过 */
 const loadIcqq = async (cfg: BotConfig): Promise<BaseBot<any> | undefined> => {
@@ -32,8 +32,8 @@ const loadIcqq = async (cfg: BotConfig): Promise<BaseBot<any> | undefined> => {
   } catch (e) {
     const msg = (e as Error)?.message || String(e)
     logger.warn(`[adapters] icqq 适配器不可用 (${uin}): ${/Cannot find|MODULE_NOT_FOUND/.test(msg)
-      ? `未安装 @icqqjs/icqq (勿装 npm 老包 icqq@0.6.10), 执行: ${ICQQ_INSTALL_CMD}`
-      : `请升级 @icqqjs/icqq 至 1.12.x: pnpm add @icqqjs/icqq@1.12.3 -w (${msg})`}`)
+      ? `未安装 icqq (npm 别名指向 @icqqjs/icqq), 执行: ${ICQQ_INSTALL_CMD}`
+      : `请升级 icqq (@icqqjs/icqq) 至 1.12.x: pnpm add icqq@npm:@icqqjs/icqq -w (${msg})`}`)
     return undefined
   }
 }
@@ -67,7 +67,6 @@ export const boot = async (cfg: BotConfig) => {
   running.set(key, { cfg, bot })
   try {
     await bot.start()
-    logger.info(`[adapters] ${cfg.protocol}/${cfg.impl || '-'} 已启动: ${addrOf(cfg)}`)
   } catch (e) {
     running.delete(key)
     await bot.stop().catch(() => { })
@@ -82,7 +81,6 @@ export const stop = async (cfg: BotConfig) => {
   if (!entry) return
   running.delete(key)
   await entry.bot.stop()
-  logger.info(`[adapters] 已断开: ${addrOf(entry.cfg)}`)
 }
 
 /** 按 QQ 号查找运行中的 icqq bot (登录短信验证 etc. 供 server HTTP 端点调用) */
@@ -147,7 +145,6 @@ export const reload = async () => {
     if (!target || !sameConfig(target, entry.cfg)) {
       running.delete(key)
       await entry.bot.stop()
-      logger.info(`[adapters] 热更新断开: ${addrOf(entry.cfg)}`)
     }
   }
   /** 启动新增或变更后的 bot */

@@ -94,7 +94,6 @@ export class KookBot extends BaseBot {
   /** 连接建立 */
   #onOpen () {
     this.__registerBot()
-    this.logger('info', `连接成功: ${this.adapter.address}`)
   }
 
   /** 收到事件 */
@@ -330,6 +329,16 @@ export class KookBot extends BaseBot {
     try {
       const user = await this.super.viewUser(userId)
       return user?.avatar || ''
+    } catch {
+      return ''
+    }
+  }
+
+  /** 服务器头像 (KookGuild.icon, CDN 链接) */
+  async getGroupAvatarUrl (groupId: string, _size?: number, _history?: number): Promise<string> {
+    try {
+      const guild = await this.super.guildView(groupId)
+      return guild?.icon || ''
     } catch {
       return ''
     }

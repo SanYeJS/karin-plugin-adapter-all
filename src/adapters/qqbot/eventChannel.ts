@@ -35,8 +35,8 @@ export interface QqBotEventChannel {
   stop (): void
 }
 
-/** QQBot 需要的 intents: 频道消息 + 频道私信 + 群聊/C2C */
-const QQ_INTENTS = (1 << 9) | (1 << 12) | (1 << 25)
+/** QQBot 需要的 intents: 频道消息(私域+公域) + 频道私信 + 群聊/C2C(含机器人进出群/权限开关) + 群成员事件(成员增减/加群申请) + 按钮回调(INTERACTION) */
+const QQ_INTENTS = (1 << 9) | (1 << 12) | (1 << 24) | (1 << 25) | (1 << 26) | (1 << 30)
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 

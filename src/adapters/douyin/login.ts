@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import QRCode from 'qrcode'
 import { logger } from 'node-karin'
 import { login } from 'douyin.ts'
-import type { Session } from 'douyin.ts'
+import type { Session, VerifyWay } from 'douyin.ts'
 import { accountStore } from './store'
 import { sdkLog } from './im'
 
@@ -20,6 +20,8 @@ export interface DouyinLoginSnapshot {
   mfaKind?: 'sms' | 'password'
   /** 脱敏手机号（sms 验证时） */
   maskedMobile?: string
+  /** 服务端可选二次验证方式（mfa 阶段且未选择时提供，选择后清空） */
+  ways?: Array<{ way: string; mobile?: string; smsContent?: string }>
   /** 安全验证中心页地址（verifying 阶段提供，面板内 iframe 展示） */
   verifyUrl?: string
   /** 登录成功后的账号数字 uid */
@@ -37,6 +39,12 @@ interface MfaWaiter {
   timer: NodeJS.Timeout
 }
 
+/** 验证方式选择等待器 */
+interface WayWaiter {
+  resolve: (way?: string) => void
+  timer: NodeJS.Timeout
+}
+
 /** 进行中的扫码登录会话 */
 interface DouyinLoginSession {
   id: string
@@ -47,6 +55,8 @@ interface DouyinLoginSession {
   statusText?: string
   mfaKind?: 'sms' | 'password'
   maskedMobile?: string
+  ways?: Array<{ way: string; mobile?: string; smsContent?: string }>
+  wayWaiter?: WayWaiter
   verifyUrl?: string
   mfaWaiter?: MfaWaiter
   uid?: string
@@ -70,6 +80,7 @@ setInterval(() => {
   for (const [id, s] of sessions) {
     if (now - s.createdAt <= SESSION_TTL) continue
     s.mfaWaiter?.reject(new Error('登录会话已超时'))
+    if (s.wayWaiter) clearTimeout(s.wayWaiter.timer)
     sessions.delete(id)
   }
 }, 60 * 1000).unref?.()
@@ -120,6 +131,21 @@ async function runLogin (session: DouyinLoginSession): Promise<void> {
         session.verifyUrl = url
         session.statusText = '需要安全验证，请在面板内完成'
       },
+      onVerifyWays: raw => new Promise<string | undefined>(resolve => {
+        session.ways = raw.map((w: VerifyWay) => ({
+          way: String(w.verify_way ?? ''),
+          mobile: typeof w.mobile === 'string' ? w.mobile : undefined,
+          smsContent: typeof w.sms_content === 'string' ? w.sms_content : undefined,
+        }))
+        session.statusText = '请选择二次验证方式'
+        // 60 秒未选择自动走 SDK 内置优先级, 不卡死登录
+        const timer = setTimeout(() => {
+          if (session.wayWaiter?.resolve === resolve) session.wayWaiter = undefined
+          session.ways = undefined
+          resolve(undefined)
+        }, 60_000)
+        session.wayWaiter = { resolve, timer }
+      }),
       onMfa: info => new Promise<string>((resolve, reject) => {
         session.phase = 'mfa'
         session.mfaKind = info.kind ?? 'sms'
@@ -148,6 +174,10 @@ async function runLogin (session: DouyinLoginSession): Promise<void> {
     logger.warn(`[douyin] 扫码登录失败: ${session.error}`)
   } finally {
     session.mfaWaiter = undefined
+    if (session.wayWaiter) {
+      clearTimeout(session.wayWaiter.timer)
+      session.wayWaiter = undefined
+    }
   }
 }
 
@@ -182,6 +212,7 @@ export const pollDouyinLogin = async (id: string): Promise<DouyinLoginSnapshot> 
     statusText: session.statusText,
     mfaKind: session.mfaKind,
     maskedMobile: session.maskedMobile,
+    ways: session.ways,
     verifyUrl: session.verifyUrl,
     uid: session.uid,
     name: session.name,
@@ -199,11 +230,24 @@ export const submitDouyinMfa = (id: string, code: string): boolean => {
   return true
 }
 
+/** 选择二次验证方式（way 空 = 使用 SDK 默认优先级）；无待选择返回 false */
+export const selectDouyinVerifyWay = (id: string, way?: string): boolean => {
+  const session = sessions.get(id)
+  const waiter = session?.wayWaiter
+  if (!session || !waiter) return false
+  clearTimeout(waiter.timer)
+  session.wayWaiter = undefined
+  session.ways = undefined
+  waiter.resolve(way || undefined)
+  return true
+}
+
 /** 取消扫码登录会话 */
 export const cancelDouyinLogin = (id: string): boolean => {
   const session = sessions.get(id)
   if (!session) return false
   session.cancelled = true
   session.mfaWaiter?.reject(new Error('登录已取消'))
+  session.wayWaiter?.resolve(undefined)
   return sessions.delete(id)
 }

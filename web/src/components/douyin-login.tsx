@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
-  douyinLoginCancel, douyinLoginMfa, douyinLoginStart, douyinLoginStatus,
+  douyinLoginCancel, douyinLoginMfa, douyinLoginStart, douyinLoginStatus, douyinLoginWay,
   authHeaders, type DouyinLoginSnapshot,
 } from '@/lib/api'
 
@@ -42,6 +42,7 @@ export default function DouyinLogin ({ onBound }: { onBound: (v: DouyinLoginResu
   const [phase, setPhase] = useState<Phase>('idle')
   const [mfaKind, setMfaKind] = useState<'sms' | 'password' | ''>('')
   const [maskedMobile, setMaskedMobile] = useState('')
+  const [ways, setWays] = useState<Array<{ way: string; mobile?: string; smsContent?: string }>>([])
   const [verifyUrl, setVerifyUrl] = useState('')
   const [mfaCode, setMfaCode] = useState('')
   const sidRef = useRef('')
@@ -78,6 +79,7 @@ export default function DouyinLogin ({ onBound }: { onBound: (v: DouyinLoginResu
       if (d.statusText) setStatusText(d.statusText)
       if (d.mfaKind) setMfaKind(d.mfaKind)
       if (d.maskedMobile) setMaskedMobile(d.maskedMobile)
+      setWays(d.ways ?? [])
       setVerifyUrl(d.verifyUrl ?? '')
       if (d.error) setError(d.error)
       if (d.phase === 'success') {
@@ -126,6 +128,7 @@ export default function DouyinLogin ({ onBound }: { onBound: (v: DouyinLoginResu
     setStatusText('')
     setMfaKind('')
     setMaskedMobile('')
+    setWays([])
     setVerifyUrl('')
     setMfaCode('')
     try {
@@ -151,6 +154,21 @@ export default function DouyinLogin ({ onBound }: { onBound: (v: DouyinLoginResu
       const res = await douyinLoginMfa(sidRef.current, code)
       if (!res.success) setError(res.message ?? '验证失败 请重试')
       else setMfaCode('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** 选择二次验证方式 */
+  const pickWay = async (way: string) => {
+    if (!sidRef.current || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const res = await douyinLoginWay(sidRef.current, way)
+      if (!res.success) setError(res.message ?? '选择失败 请重试')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -256,7 +274,23 @@ export default function DouyinLogin ({ onBound }: { onBound: (v: DouyinLoginResu
                 </Badge>
               </>
             )}
-            {phase === 'mfa' && (
+            {phase === 'mfa' && ways.length > 0 && (
+              <div className='flex w-full flex-col gap-2'>
+                <Badge className='mx-auto bg-amber-500/15 text-amber-600 dark:text-amber-400'>请选择验证方式</Badge>
+                {ways.map(w => (
+                  <Button
+                    key={w.way || w.mobile}
+                    variant='outline'
+                    size='sm'
+                    disabled={busy}
+                    onClick={() => void pickWay(w.way)}
+                  >
+                    {w.smsContent || (w.mobile ? `短信验证 (${w.mobile})` : w.way)}
+                  </Button>
+                ))}
+              </div>
+            )}
+            {phase === 'mfa' && ways.length === 0 && (
               <div className='flex w-full flex-col gap-2'>
                 <Badge className='mx-auto bg-amber-500/15 text-amber-600 dark:text-amber-400'>需要验证</Badge>
                 <p className='text-center text-xs leading-relaxed text-muted-foreground'>{mfaHint}</p>

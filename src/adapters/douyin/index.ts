@@ -11,6 +11,7 @@ import {
 } from 'node-karin'
 import type {
   Contact, Elements, SendElement, SendMsgResults, UserInfo, GroupInfo, GroupMemberInfo, MessageResponse,
+  NodeElement,
 } from 'node-karin'
 import { Bot, chatIdOf } from 'douyin.ts'
 import type { BotMessage, MediaInput, NoticeEvent, RequestEvent, StatusEvent } from 'douyin.ts'
@@ -20,7 +21,7 @@ import { dir } from '@/dir'
 import { BaseBot } from '../base'
 import type { BotConfig } from '../base'
 import { applyMsgReplace } from '../../utils/msgReplace'
-import { makeMsg, toElements, loadForwardNodes, rememberReply } from './convert'
+import { makeMsg, toElements, loadForwardNodes, cacheForwardNodes, collectForwardNodes, sendBody, rememberReply } from './convert'
 import { mountMediaRoute } from './media'
 import { rememberChat, resolveChatId, cachedSecUid, rememberSecUid, refreshContacts, loadContactCache } from './contact'
 import { accountStore } from './store'
@@ -45,7 +46,7 @@ async function toMessageResponse (ctx: DouyinContext, contact: Contact, msg: {
 }): Promise<MessageResponse> {
   const nick = (await ctx.bot.nickOf(msg.senderUid)) ?? ''
   return {
-    time: msg.createTime,
+    time: Math.floor(msg.createTime / 1000),
     messageId: msg.msgId,
     messageSeq: Number(msg.indexInConversation ?? 0),
     contact,
@@ -120,13 +121,19 @@ export class DouyinBot extends BaseBot {
       avatar: String(record.userData?.avatar_url ?? ''),
       subId: {},
     }
+    // 扫码落盘的 avatar_url 是 passport 打码占位图, 拉取真实头像覆盖 (失败时保留占位)
+    bot.user.self()
+      .then(me => {
+        if (me.avatar) this.account.avatar = me.avatar
+        if (me.nickname && !record.screenName) this.account.name = me.nickname
+      })
+      .catch(() => { })
     this.register()
     // im 活跃心跳上报（登录后打一次，防连接静默掉线）
     bot.user.heartbeat().catch(err => logger.debug(
       `[douyin] 心跳上报失败: ${err instanceof Error ? err.message : String(err)}`
     ))
     startRefreshTimer(this.ctx)
-    logger.info(`[douyin] 账号 ${uid}(${this.account.name}) 已上线`)
   }
 
   /** 停止：断开 SDK 连接并注销（基类 stop 的 raw.close 对 douyin 无效，SDK 关闭方法是 stop） */
@@ -243,6 +250,42 @@ export class DouyinBot extends BaseBot {
       sender: { userId: node.uid, nick: node.nickname, role: 'member' },
       elements: [segment.text(node.text)],
     } as MessageResponse))
+  }
+
+  /** 转发资源自增序号（createResId 用） */
+  #fwdSeq = 0
+
+  /** 发送合并转发（node 元素统一走 sendMsg 的合并转发分支） */
+  override async sendForwardMsg (contact: Contact, elements: Array<NodeElement>): Promise<{ messageId: string, forwardId: string }> {
+    const result = await this.sendMsg(contact, elements as Array<SendElement>)
+    return { messageId: result.messageId, forwardId: '' }
+  }
+
+  /** 构造转发资源 ID（节点收集后缓存，供 sendLongMsg 发送） */
+  override async createResId (contact: Contact, elements: Array<NodeElement>): Promise<string> {
+    const ctx = this.requireCtx()
+    const chatId = await this.requireChatId(contact)
+    const nodes = await collectForwardNodes(ctx, chatId, elements as Array<SendElement>)
+    if (!nodes?.length) throw new Error('[douyin] 无法构造转发节点')
+    const resId = `douyin:fwd:${Date.now()}:${++this.#fwdSeq}`
+    cacheForwardNodes(resId, nodes)
+    return resId
+  }
+
+  /** 发送长消息（resId 为 createResId 产生的转发资源） */
+  override async sendLongMsg (contact: Contact, resId: string): Promise<SendMsgResults> {
+    const ctx = this.requireCtx()
+    const nodes = loadForwardNodes(resId)
+    if (!nodes?.length) throw new Error(`[douyin] 未找到转发资源: ${resId}`)
+    const chatId = await this.requireChatId(contact)
+    const result = await sendBody(ctx, chatId, { type: 'forward', text: '[合并转发]', nodes })
+    const messageId = result.serverMessageId ?? ''
+    return { messageId, time: Date.now(), rawData: result, message_id: messageId, messageTime: Date.now() }
+  }
+
+  /** 上传文件（以文件消息形式发送到会话） */
+  override async uploadFile (contact: Contact, file: string, name: string): Promise<void> {
+    await this.sendMsg(contact, [segment.file(file, { name })])
   }
 
   // ===== 查询 =====

@@ -165,6 +165,105 @@ export class Client {
       ? this.request('/guild-mute/create', { guild_id: guildId, user_id: userId, type })
       : this.request('/guild-mute/delete', { guild_id: guildId, user_id: userId, type })
 
+  /* === 频道管理 === */
+  /** 创建频道 (type: 1 文字 2 语音; speak_permission: 0 所有成员 1 仅管理员) */
+  channelCreate = (guildId: string, name: string, type: 1 | 2 = 1, opts: { parentId?: string; limit?: number; isPrivate?: boolean; privateKey?: string; speakPermission?: number } = {}) =>
+    this.request<Record<string, any>>('/channel/create', {
+      guild_id: guildId,
+      name,
+      type,
+      ...(opts.parentId ? { parent_id: opts.parentId } : {}),
+      ...(opts.limit ? { limit: opts.limit } : {}),
+      ...(opts.isPrivate !== undefined ? { is_private: opts.isPrivate } : {}),
+      ...(opts.privateKey ? { private_key: opts.privateKey } : {}),
+      ...(opts.speakPermission !== undefined ? { speak_permission: opts.speakPermission } : {}),
+    })
+  /** 修改频道 */
+  channelUpdate = (channelId: string, opts: { name?: string; topic?: string; limit?: number; password?: string; isPrivate?: boolean; speakPermission?: number } = {}) =>
+    this.request('/channel/update', {
+      channel_id: channelId,
+      ...(opts.name ? { name: opts.name } : {}),
+      ...(opts.topic ? { topic: opts.topic } : {}),
+      ...(opts.limit ? { limit: opts.limit } : {}),
+      ...(opts.password ? { password: opts.password } : {}),
+      ...(opts.isPrivate !== undefined ? { is_private: opts.isPrivate } : {}),
+      ...(opts.speakPermission !== undefined ? { speak_permission: opts.speakPermission } : {}),
+    })
+  channelDelete = (channelId: string) => this.request('/channel/delete', { channel_id: channelId })
+  /** 机器人加入语音频道 (启用语音服务) */
+  channelJoin = (channelId: string) => this.request<{ audio_ssrc: string; audio_url: string }>('/channel/join', { channel_id: channelId })
+  channelLeave = (channelId: string) => this.request('/channel/leave', { channel_id: channelId })
+  /** 将用户移动到其他语音频道 (需管理员) */
+  channelMoveUser = (targetId: string, channelId: string) => this.request('/channel/move-user', { target_id: targetId, channel_id: channelId })
+
+  /* === 身份组管理 === */
+  guildRoleCreate = (guildId: string, opts: { name?: string; color?: number; hoist?: boolean; mentionable?: boolean; permissions?: number } = {}) =>
+    this.request<{ role: Record<string, any>; role_id: string }>('/guild-role/create', {
+      guild_id: guildId,
+      ...(opts.name ? { name: opts.name } : {}),
+      ...(opts.color !== undefined ? { color: opts.color } : {}),
+      ...(opts.hoist !== undefined ? { hoist: opts.hoist } : {}),
+      ...(opts.mentionable !== undefined ? { mentionable: opts.mentionable } : {}),
+      ...(opts.permissions !== undefined ? { permissions: opts.permissions } : {}),
+    })
+  guildRoleUpdate = (guildId: string, roleId: string, opts: { name?: string; color?: number; position?: number; hoist?: boolean; mentionable?: boolean; permissions?: number } = {}) =>
+    this.request<{ role: Record<string, any>; role_id: string }>('/guild-role/update', {
+      guild_id: guildId,
+      role_id: roleId,
+      ...(opts.name ? { name: opts.name } : {}),
+      ...(opts.color !== undefined ? { color: opts.color } : {}),
+      ...(opts.position !== undefined ? { position: opts.position } : {}),
+      ...(opts.hoist !== undefined ? { hoist: opts.hoist } : {}),
+      ...(opts.mentionable !== undefined ? { mentionable: opts.mentionable } : {}),
+      ...(opts.permissions !== undefined ? { permissions: opts.permissions } : {}),
+    })
+  guildRoleDelete = (guildId: string, roleId: string) => this.request<{ role_id: string }>('/guild-role/delete', { guild_id: guildId, role_id: roleId })
+  /** 给成员附加身份组 (roleIds 可传多个) */
+  guildRoleGrant = (guildId: string, userId: string, roleIds: string[]) => this.request<{ user_id: string; guild_id: string; roles: string[] }>('/guild-role/grant', { guild_id: guildId, user_id: userId, role_ids: roleIds })
+  guildRoleRevoke = (guildId: string, userId: string, roleIds: string[]) => this.request<{ user_id: string; guild_id: string; roles: string[] }>('/guild-role/revoke', { guild_id: guildId, user_id: userId, role_ids: roleIds })
+
+  /* === 服务器表情 === */
+  guildEmojiList = (guildId: string) => this.request<{ items: Array<Record<string, any>> }>('/guild-emoji/list', { guild_id: guildId }, 'get')
+  guildEmojiDelete = (emojiId: string) => this.request('/guild-emoji/delete', { id: emojiId })
+
+  /* === 黑名单 === */
+  blacklistList = (guildId: string, page?: number, pageSize?: number) => this.request<{ items: Array<Record<string, any>>; meta: Record<string, any> }>('/blacklist/list', { guild_id: guildId, page, page_size: pageSize }, 'get')
+  /** 拉黑成员 (remark 备注, delMsgDays 删除其最近 n 天消息) */
+  blacklistCreate = (guildId: string, targetId: string, opts: { remark?: string; delMsgDays?: number } = {}) => this.request<{ user_id: string }>('/blacklist/create', { guild_id: guildId, target_id: targetId, ...(opts.remark ? { remark: opts.remark } : {}), ...(opts.delMsgDays ? { del_msg_days: opts.delMsgDays } : {}) })
+  blacklistDelete = (guildId: string, targetId: string) => this.request<{ user_id: string }>('/blacklist/delete', { guild_id: guildId, target_id: targetId })
+
+  /* === 邀请链接 === */
+  inviteList = (opts: { guildId?: string; channelId?: string; page?: number; pageSize?: number } = {}) => this.request<{ items: Array<Record<string, any>>; meta: Record<string, any> }>('/invite/list', { guild_id: opts.guildId, channel_id: opts.channelId, page: opts.page, page_size: opts.pageSize }, 'get')
+  /** 创建邀请 (duration 有效秒数 0永久; settingTimes 可用次数 0不限; settingStartTime 生效时间戳) */
+  inviteCreate = (guildId: string, opts: { channelId?: string; duration?: number; settingTimes?: number; settingStartTime?: string } = {}) => this.request<{ url: string; url_code: string }>('/invite/create', {
+    guild_id: guildId,
+    ...(opts.channelId ? { channel_id: opts.channelId } : {}),
+    ...(opts.duration !== undefined ? { duration: opts.duration } : {}),
+    ...(opts.settingTimes !== undefined ? { setting_times: opts.settingTimes } : {}),
+    ...(opts.settingStartTime ? { setting_start_time: opts.settingStartTime } : {}),
+  })
+  inviteDelete = (urlCode: string) => this.request<{ url: string; guild_id: string }>('/invite/delete', { url_code: urlCode })
+
+  /* === 亲密度 (机器人与用户的个人资料页互动信息) === */
+  intimacyIndex = (userId?: string) => this.request<Record<string, any>>('/intimacy/index', { user_id: userId }, 'get')
+  intimacyUpdate = (userId: string, opts: { score?: number; socialInfo?: string; imgId?: string } = {}) => this.request('/intimacy/update', { user_id: userId, ...(opts.score !== undefined ? { score: opts.score } : {}), ...(opts.socialInfo ? { social_info: opts.socialInfo } : {}), ...(opts.imgId ? { img_id: opts.imgId } : {}) })
+
+  /* === 游戏 (机器人在线状态展示) === */
+  gameList = () => this.request<{ items: Array<Record<string, any>> }>('/game/list', undefined, 'get')
+  gameCreate = (name: string, icon?: string) => this.request<{ id: string; game: Record<string, any> }>('/game/create', { name, ...(icon ? { icon } : {}) })
+  gameUpdate = (id: string, opts: { name?: string; icon?: string } = {}) => this.request<{ id: string; game: Record<string, any> }>('/game/update', { id, ...(opts.name ? { name: opts.name } : {}), ...(opts.icon ? { icon: opts.icon } : {}) })
+  gameDelete = (id: string) => this.request('/game/delete', { id })
+  /** 更新机器人在线状态: type=1 玩游戏显示 dataName(已建游戏传 dataId), type=0 恢复默认状态 */
+  gameActivity = (opts: { type: 0 | 1; dataId?: string; dataName?: string }) => this.request('/game/activity', { type: opts.type, ...(opts.dataId ? { data_id: opts.dataId } : {}), ...(opts.dataName ? { data_name: opts.dataName } : {}) })
+
+  /* === 消息回应详情 === */
+  /** 查看 emoji 回应的成员列表 (emoji 传如 `:[name]:[id]:` 形式) */
+  reactionList = (msgId: string, emoji: string, userId?: string, pageSize?: number) => this.request<{ items: Array<{ user: KookUser; msg_id: string; reaction_type: number; emoji: Record<string, any> }>; meta: Record<string, any> }>('/message/reaction-list', { msg_id: msgId, emoji, ...(userId ? { user_id: userId } : {}), page_size: pageSize }, 'get')
+
+  /* === 私聊会话 === */
+  /** 机器人与用户的私聊会话列表 */
+  userChatList = (page?: number, pageSize?: number) => this.request<{ items: Array<Record<string, any>>; meta: Record<string, any> }>('/user-chat/list', { page, page_size: pageSize }, 'get')
+
   /* === 私信 (直发用户, 无需先有私信会话) === */
   /** 创建并发送私信消息 targetId=目标用户ID 成功返回私信频道ID */
   directCreate = (targetId: string, content: string, quote?: string, tempTargetId?: string, type: number = 9) => this.request<{

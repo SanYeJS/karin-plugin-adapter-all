@@ -6,7 +6,7 @@ import { dir } from '@/dir'
 import { WEB_PREFIX, config, saveConfig } from '@/utils/config'
 import { subscribeLoginSSE, emitLoginEvent } from '@/utils/login-events'
 import { startQr, pollQr, cancelQr } from '@/utils/qqbot-qr'
-import { startDouyinLogin, pollDouyinLogin, submitDouyinMfa, cancelDouyinLogin } from '@/adapters/douyin/login'
+import { startDouyinLogin, pollDouyinLogin, submitDouyinMfa, selectDouyinVerifyWay, cancelDouyinLogin } from '@/adapters/douyin/login'
 import { startWxocQr, pollWxocQr, cancelWxocQr } from '@/adapters/wxoc/qr'
 import { ICQQ_INSTALL_CMD, findIcqqBot, isQqbotOnline, isDouyinOnline, isWxocOnline } from '@/adapters'
 import type { BotConfig, OneBot11Communication, OneBot11Impl, Protocol } from '@/adapters/base'
@@ -162,12 +162,12 @@ const authGuard = (req: any, res: any, next: () => void) => {
 }
 
 /**
- * @description 探测 @icqqjs/icqq 是否已安装 (webui 保存 icqq 配置前预检)
+ * @description 探测 icqq (@icqqjs/icqq) 是否已安装 (webui 保存 icqq 配置前预检)
  * 不缓存结果: 用户装完包后再次保存即可直接生效, 无需重启插件
  */
 const icqqReady = async (): Promise<boolean> => {
   try {
-    await import('@icqqjs/icqq')
+    await import('icqq')
     return true
   } catch {
     return false
@@ -216,7 +216,7 @@ apiRouter.post('/', async (req, res) => {
       .map((b) => normalizeBot(b))
       .filter((b): b is BotConfig => Boolean(b))
     if (bots.some((b) => b.protocol === 'icqq' && b.enable) && !(await icqqReady())) {
-      createServerErrorResponse(res, `ICQQ 机器人需要安装 @icqqjs/icqq (勿装 npm 老包 icqq@0.6.10), 请先执行: ${ICQQ_INSTALL_CMD}`)
+      createServerErrorResponse(res, `ICQQ 机器人需要安装 icqq (@icqqjs/icqq), 请先执行: ${ICQQ_INSTALL_CMD}`)
       return
     }
     saveConfig({ bots })
@@ -402,7 +402,7 @@ app.use(`${WEB_PREFIX}/api/qqbot/qr`, qrRouter)
  * 抖音扫码登录路由 (Web 面板):
  *  - POST /start   创建登录会话, 返回 { id } (全局互斥, 二维码通过 status 轮询获取)
  *  - POST /status  查询会话状态 (body.sid), phase: pending(含二维码 image)/scanned/verifying/mfa/success(带 uid/name)/expired/error
- *  - POST /mfa     提交二次验证 (body.sid + body.code, 短信验证码或账号密码)
+ *  - POST /mfa     提交二次验证 (body.sid + body.code, 短信验证码或账号密码; body.way 选择验证方式, 空 = 默认优先级)
  *  - POST /cancel  取消会话 (body.sid)
  * 登录成功后凭据已落盘 data/douyin-accounts, 前端回填 douyinUid/douyinName 保存即可
  */
@@ -428,10 +428,16 @@ douyinLoginRouter.post('/status', async (req, res) => {
 
 douyinLoginRouter.post('/mfa', (req, res) => {
   try {
-    const body = (req.body ?? {}) as { sid?: string; code?: string }
+    const body = (req.body ?? {}) as { sid?: string; code?: string; way?: string }
     const sid = String(body.sid ?? '').trim()
-    const code = String(body.code ?? '').trim()
     if (!sid) throw new Error('缺少会话 id')
+    // way: 验证方式选择 (空 = 使用默认优先级)
+    if (body.way !== undefined) {
+      if (!selectDouyinVerifyWay(sid, String(body.way).trim())) throw new Error('会话不存在或未在等待选择验证方式')
+      createSuccessResponse(res, null, '已选择, 登录继续中')
+      return
+    }
+    const code = String(body.code ?? '').trim()
     if (!code) throw new Error('缺少验证码/密码')
     if (!submitDouyinMfa(sid, code)) throw new Error('会话不存在或未在等待验证输入')
     createSuccessResponse(res, null, '已提交, 登录继续中')

@@ -113,7 +113,6 @@ export class MilkyBot extends BaseBot {
       this.adapter.connectTime = Date.now() - this.#startTime
     }, 1000)
     this.__registerBot()
-    this.logger('info', `连接成功: ${this.adapter.address}`)
   }
 
   /** 收到事件: 分发到 milky 事件处理层 */
@@ -535,7 +534,7 @@ export class MilkyBot extends BaseBot {
   }
 
   async getGroupAvatarUrl (_groupId: string, _size?: 0 | 40 | 100 | 140, _history?: number): Promise<string> {
-    return `https://p.qlogo.cn/gh/${_groupId}/${_groupId}/${_size}`
+    return `https://p.qlogo.cn/gh/${_groupId}/${_groupId}/${_size || 0}`
   }
 
   async pokeUser (_contact: Contact, _targetId: string, _count: number = 1): Promise<boolean> {

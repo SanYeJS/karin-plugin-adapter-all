@@ -142,7 +142,8 @@ function segmentsToKmarkdown (segments: KookSegment[]): string {
 export function buildCard (
   segments: KookSegment[],
   images: string[],
-  media: Array<{ type: 'file' | 'audio' | 'video'; src: string; title?: string }>
+  media: Array<{ type: 'file' | 'audio' | 'video'; src: string; title?: string }>,
+  buttonRows: Array<Array<Record<string, any>>> = []
 ): Record<string, any> {
   const modules: any[] = []
   const texts: string[] = []
@@ -177,7 +178,23 @@ export function buildCard (
     else if (m.type === 'video') modules.push({ type: 'video', src: m.src, title: m.title || '视频' })
     else modules.push({ type: 'file', src: m.src, title: m.title || '文件' })
   }
+  // 按钮行 → action-group (每行一个模块, 行内按钮并排)
+  for (const row of buttonRows) {
+    if (row.length > 0) modules.push({ type: 'action-group', elements: row })
+  }
   return { type: 'card', theme: 'info', modules }
+}
+
+/** 剥离被反引号包裹的链接/指令 (与 qqbot 同源处理, 插件模板可能带反引号) */
+const stripQuote = (v: string) => v.replace(/^`(.*)`$/, '$1')
+
+/** Karin 按钮 → Kook 卡片按钮 (click: link=跳转链接 value=回调/指令, 上限 20 字符) */
+function kookButtonOf (b: { text: string; callback?: boolean; link?: string; data?: string }): Record<string, any> | undefined {
+  const label = String(b.text || '').slice(0, 20)
+  if (!label) return undefined
+  const base = { type: 'button', text: { type: 'plain-text', content: label } }
+  if (!b.callback && b.link) return { ...base, click: 'link', value: stripQuote(String(b.link)) }
+  return { ...base, click: 'value', value: stripQuote(String(b.data || b.text || '')) }
 }
 
 /**
@@ -196,6 +213,7 @@ export async function KarinConvertAdapter (
   const segments: KookSegment[] = []
   const images: string[] = []
   const media: Array<{ type: 'file' | 'audio' | 'video'; src: string; title?: string }> = []
+  const buttonRows: Array<Array<Record<string, any>>> = []
   let quote: string | undefined
   for (const i of data) {
     switch (i.type) {
@@ -221,24 +239,56 @@ export async function KarinConvertAdapter (
       case 'file':
         media.push({ type: 'file', src: await resolveMediaUrl(String(i.file), 'file', upload), title: i.name || undefined })
         break
+      case 'markdown':
+        // 多段 markdown 取最后一段 (KMarkdown 原生支持 markdown 语法)
+        segments.push({ type: 'text', content: String((i as any).markdown ?? '') })
+        break
+      case 'markdownTpl':
+        segments.push({ type: 'text', content: '[模板消息]' })
+        break
+      case 'button': {
+        const row = ((i as any).data || []).map(kookButtonOf).filter(Boolean)
+        if (row.length > 0) buttonRows.push(row)
+        break
+      }
+      case 'keyboard': {
+        const rows = ((i as any).rows || [])
+          .map((row: Array<any>) => (row || []).map(kookButtonOf).filter(Boolean))
+          .filter((row: Array<any>) => row.length > 0)
+        buttonRows.push(...rows)
+        break
+      }
+      case 'face':
+        segments.push({ type: 'text', content: '[表情]' })
+        break
+      case 'node':
+      case 'longMsg':
+        segments.push({ type: 'text', content: '[合并转发]' })
+        break
+      case 'json':
+      case 'xml':
+      case 'pasmsg':
+      case 'raw':
+        break
       default:
-        segments.push({ type: 'text', content: JSON.stringify(i) })
+        segments.push({ type: 'text', content: `[${i.type}]` })
+        break
     }
   }
   const hasText = segments.length > 0
   // 纯单张图片 → 原生图片消息 (type=2)
-  if (images.length === 1 && media.length === 0 && !hasText) {
+  if (images.length === 1 && media.length === 0 && buttonRows.length === 0 && !hasText) {
     return { type: 2, content: images[0], quote }
   }
   // 纯单个媒体 → 原生视频/文件/音频消息 (type=3/4/5)
-  if (images.length === 0 && media.length === 1 && !hasText) {
+  if (images.length === 0 && media.length === 1 && buttonRows.length === 0 && !hasText) {
     const m = media[0]
     const t = m.type === 'video' ? 3 : m.type === 'file' ? 4 : 5
     return { type: t, content: m.src, quote }
   }
-  // 含文本/多图/多媒体的混合内容 → 卡片消息 (type=10): 图片用 image-group 元素刷新可见状态
-  if (images.length > 0 || media.length > 0) {
-    return { type: 10, content: '', card: buildCard(segments, images, media), quote }
+  // 含文本/多图/多媒体/按钮的混合内容 → 卡片消息 (type=10): 图片用 image-group, 按钮用 action-group
+  if (images.length > 0 || media.length > 0 || buttonRows.length > 0) {
+    return { type: 10, content: '', card: buildCard(segments, images, media, buttonRows), quote }
   }
   // KMarkdown 文本消息 (type=9): 纯文本/@ 拼接为 KMarkdown 语法
   return { type: 9, content: segmentsToKmarkdown(segments), quote }

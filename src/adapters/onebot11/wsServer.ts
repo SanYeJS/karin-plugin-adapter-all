@@ -135,7 +135,6 @@ export class OneBot11WSServer extends EventEmitter {
     this.clients.set(ws, Date.now())
     this.last = ws
     this.emit('open')
-    logger.info(`[OneBot11WSServer] 协议端已连接(${this.clients.size}) 来自 ${peer}: ${upath}`)
 
     ws.on('message', (data) => {
       const raw = data.toString()

@@ -83,7 +83,6 @@ export class WxocBot extends BaseBot {
     }
 
     this.register()
-    this.logger('info', `连接成功: ${this.adapter.address}`)
     // 长轮询循环后台运行
     this.#poll().catch(() => { })
   }
@@ -362,6 +361,16 @@ export class WxocBot extends BaseBot {
   async getStrangerInfo (targetId: string): Promise<UserInfo> {
     const contact = await state.getContact(this.account.selfId, targetId)
     return { userId: targetId, uid: targetId, nick: contact?.name || '' }
+  }
+
+  /** ilink API 不提供头像查询接口 返回空字符串 */
+  async getAvatarUrl (_userId: string, _size?: 0 | 40 | 100 | 140): Promise<string> {
+    return ''
+  }
+
+  /** 微信Claw不支持群聊 */
+  async getGroupAvatarUrl (_groupId: string, _size?: 0 | 40 | 100 | 140, _history?: number): Promise<string> {
+    throw new Error('微信Claw不支持群聊')
   }
 
   /** 获取好友列表 基于已收发消息的联系人缓存 */

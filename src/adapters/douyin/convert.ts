@@ -56,7 +56,8 @@ export function loadForwardNodes (resId: string): ForwardNode[] | undefined {
   return forwardCache.get(resId)
 }
 
-function cacheForwardNodes (resId: string, nodes: ForwardNode[]): void {
+/** 写入合并转发节点缓存 (容量 200, 淘汰最旧) */
+export function cacheForwardNodes (resId: string, nodes: ForwardNode[]): void {
   forwardCache.set(resId, nodes)
   if (forwardCache.size > 200) {
     const first = forwardCache.keys().next().value
@@ -403,25 +404,23 @@ function makeBrief (body: MsgBody): string {
 }
 
 /** 校验发送响应：非 0 抛错（401/login/expire 提示重登）；成功写中文发送日志 */
-function checkSend (ctx: DouyinContext, ret: SendMessageResponse, target: string, brief: string): SendMessageResponse {
+function checkSend (ctx: DouyinContext, ret: SendMessageResponse, brief: string): SendMessageResponse {
   if (ret.statusCode !== 0) {
     if (/401|login|expire/i.test(ret.statusMsg)) {
       logger.error(`[douyin][${ctx.platformUid}] 登录态失效（${ret.statusMsg}），请重新扫码登录`)
     }
     throw new Error(`[douyin] 发送${brief}失败: ${ret.statusMsg} (code=${ret.statusCode})`)
   }
-  logger.info(`[douyin] 发送到 ${target}: ${brief}`)
   return ret
 }
 
-/** 单条发送入口：状态校验 + 结果日志（媒体由 SDK 自动上传） */
-async function sendBody (
+/** 单条发送入口：状态校验（媒体由 SDK 自动上传） */
+export async function sendBody (
   ctx: DouyinContext,
   chatId: string,
-  body: MsgBody,
-  target: string
+  body: MsgBody
 ): Promise<SendMessageResponse> {
-  return checkSend(ctx, await ctx.bot.msg.send(chatId, body), target, makeBrief(body))
+  return checkSend(ctx, await ctx.bot.msg.send(chatId, body), makeBrief(body))
 }
 
 /** 引用回复发送：定位失败降级为普通文本 */
@@ -429,17 +428,16 @@ async function sendReply (
   ctx: DouyinContext,
   chatId: string,
   referencedMessageId: string,
-  chunk: string,
-  target: string
+  chunk: string
 ): Promise<SendMessageResponse> {
   const options = await makeReplyOptions(ctx, chatId, referencedMessageId, chunk)
-  if (!options) return sendBody(ctx, chatId, { type: 'text', text: chunk }, target)
+  if (!options) return sendBody(ctx, chatId, { type: 'text', text: chunk })
   const ret = await ctx.bot.im().reply(options)
-  return checkSend(ctx, ret, target, makeBrief({ type: 'text', text: chunk }))
+  return checkSend(ctx, ret, makeBrief({ type: 'text', text: chunk }))
 }
 
 /** 收集合并转发节点：fake（自定义）+ messageID（引用真实消息） */
-async function collectForwardNodes (
+export async function collectForwardNodes (
   ctx: DouyinContext,
   chatId: string,
   elements: Array<SendElement>
@@ -473,12 +471,11 @@ export async function makeMsg (
 ): Promise<SendMsgResults> {
   const chatId = await resolveChatId(ctx, contact)
   if (!chatId) throw new Error(`[douyin] 无法解析会话目标: ${contact.scene} ${contact.peer}`)
-  const target = contact.scene === 'group' ? `Group(${contact.peer})` : `User(${contact.peer})`
 
   // 合并转发：node（fake/messageID）节点单条发送
   const forwardNodes = await collectForwardNodes(ctx, chatId, elements)
   if (forwardNodes) {
-    const result = await sendBody(ctx, chatId, { type: 'forward', text: '[合并转发]', nodes: forwardNodes }, target)
+    const result = await sendBody(ctx, chatId, { type: 'forward', text: '[合并转发]', nodes: forwardNodes })
     const messageId = result.serverMessageId ?? ''
     const time = Date.now()
     return { messageId, time, rawData: result, message_id: messageId, messageTime: time }
@@ -495,7 +492,7 @@ export async function makeMsg (
     if (pendingReplyId) {
       const referenced = pendingReplyId
       pendingReplyId = ''
-      last = await sendReply(ctx, chatId, referenced, chunk, target)
+      last = await sendReply(ctx, chatId, referenced, chunk)
       return
     }
     const mentions = ats.splice(0).filter(m => /^\d+$/.test(m.uid))
@@ -503,7 +500,7 @@ export async function makeMsg (
       type: 'text',
       text: chunk,
       ...(mentions.length ? { ats: mentions } : {}),
-    }, target)
+    })
   }
 
   for (const el of elements) {
@@ -522,21 +519,21 @@ export async function makeMsg (
         break
       case 'image':
         await flush()
-        last = await sendBody(ctx, chatId, { type: 'image', image: mediaSource(el.file) }, target)
+        last = await sendBody(ctx, chatId, { type: 'image', image: mediaSource(el.file) })
         break
       case 'video':
         await flush()
         last = await sendBody(ctx, chatId, {
           type: 'video',
           video: { source: mediaSource(el.file), poster: POSTER_JPEG, width: el.width || 720, height: el.height || 1280 },
-        }, target)
+        })
         break
       case 'record':
         text += '[语音]暂不支持'
         break
       case 'file':
         await flush()
-        last = await sendBody(ctx, chatId, { type: 'file', file: { source: mediaSource(el.file), name: el.name } }, target)
+        last = await sendBody(ctx, chatId, { type: 'file', file: { source: mediaSource(el.file), name: el.name } })
         break
       default:
         break

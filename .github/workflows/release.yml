@@ -1,22 +1,20 @@
-name: Release and Publish # 发布和发布的工作流程名称
+name: Release and Publish # main 推送: release-please 管理版本 → 构建 → 发布 npm
 on:
   push:
     branches:
-      - main # 仅当推送到 main 分支时触发
+      - main
 permissions:
-  contents: write # 设置内容的权限为写
-  pull-requests: write # 设置拉取请求的权限为写
-  issues: write # 设置问题的权限为写
+  contents: write
+  pull-requests: write
+  issues: write
 jobs:
   release-please:
-    # 设置工作流程运行环境为 Ubuntu
     runs-on: ubuntu-latest
     steps:
-      # 使用 release-please-action@v3
+      # 版本管理与 Release PR 创建
       - uses: google-github-actions/release-please-action@v3
         id: release
         with:
-          # 设置发布类型为 Node.js
           release-type: node
       # 检出代码
       - uses: actions/checkout@v4
@@ -24,128 +22,66 @@ jobs:
       # 安装 pnpm
       - uses: pnpm/action-setup@v4
         with:
-          version: 9 # 指定 pnpm 版本
+          version: 9
         if: ${{ steps.release.outputs.release_created }}
-      # 设置 Node.js 环境
+      # 设置 Node.js 环境 (tsdown 构建要求 >= 22.18)
       - uses: actions/setup-node@v4
         with:
-          # 设置 Node.js 版本（tsdown 构建要求 >= 22.18）
           node-version: 22
-          # 设置 npm 注册表 URL
           registry-url: https://registry.npmjs.org
         if: ${{ steps.release.outputs.release_created }}
-      # 安装依赖 (剥离 icqq 可选项, 避免 CI 拉取 GitHub Packages 认证失败)
-      - name: 安装依赖 (跳过 GitHub Packages)
-        run: |
-          node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.optionalDependencies['@icqqjs/icqq'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
-          pnpm install --no-frozen-lockfile
+      # 安装依赖
+      - name: 安装依赖
+        run: pnpm install --no-frozen-lockfile
         if: ${{ steps.release.outputs.release_created }}
       # 编译
       - run: pnpm build
         if: ${{ steps.release.outputs.release_created }}
-      # 构建完成后, 将构建内容写进 Release PR / Release 描述 (内容直接内联在本文件)
-      - name: 写入构建成功内容
-        uses: actions/github-script@v7
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
-          PR_BRANCH: release-please--branches--main--components--karin-plugin-adapter-all
-        with:
-          script: |
-            const { owner, repo } = context.repo
-            const branch = `https://github.com/${owner}/${repo}/tree/build`
-            const installCmd = `pnpm add github:${owner}/${repo}#build -w`
-            let section = `## 构建内容\n\n### 📦 发布分支的包\n- [build 分支](${branch})：dist + resources/web 构建产物\n- 安装命令：\`${installCmd}\`\n`
-            if (process.env.RELEASE_TAG) {
-              section += `\n### 🏷️ 发行版\n- 版本：\`${process.env.RELEASE_TAG}\`\n- [查看 Release](https://github.com/${owner}/${repo}/releases/tag/${process.env.RELEASE_TAG})\n- [npm 包](https://www.npmjs.com/package/karin-plugin-adapter-all)\n`
-              const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag: process.env.RELEASE_TAG })
-              await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, body: (release.body || '') + '\n' + section })
-            } else {
-              const { data: prs } = await github.rest.pulls.list({ owner, repo, state: 'open', head: `${owner}:${process.env.PR_BRANCH}` })
-              for (const pr of prs) {
-                await github.rest.pulls.update({ owner, repo, pull_number: pr.number, body: (pr.body || '') + '\n' + section })
-              }
-            }
-        if: ${{ steps.release.outputs.release_created || steps.release.outputs.prs_created }}
-      # 还原 icqq 可选依赖声明 (发布包保留 ICQQ 能力, 无需在 CI 下载)
-      - name: 还原 icqq 可选依赖
-        run: node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json','utf8'));p.optionalDependencies['@icqqjs/icqq']='1.12.3';fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
-        if: ${{ steps.release.outputs.release_created }}
       # 删除开发依赖
       - run: npm pkg delete devDependencies
         if: ${{ steps.release.outputs.release_created }}
-      # 发布带npm
+      # 发布到 npm
       - run: npm run pub
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         if: ${{ steps.release.outputs.release_created }}
-  # 每次 main 推送时构建并同步产物到 build 分支
-  sync-build:
-    # 设置工作流程运行环境为 Ubuntu
-    runs-on: ubuntu-latest
-    # 构建结果输出, 供 build-summary 判断
-    outputs:
-      build_success: ${{ steps.build.outputs.success }}
-    steps:
-      # 检出代码（保留完整历史）
-      - uses: actions/checkout@v4
+      # 发布成功后把 npm 包链接追加到 Release 描述
+      - name: 更新 Release 描述
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
         with:
-          fetch-depth: 0
-      # 安装 pnpm
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9 # 指定 pnpm 版本
-      # 设置 Node.js 环境（tsdown 构建要求 >= 22.18）
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      # 安装依赖 (剥离 icqq 可选项, 避免 CI 拉取 GitHub Packages 认证失败)
-      - name: 安装依赖 (跳过 GitHub Packages)
-        run: |
-          node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.optionalDependencies['@icqqjs/icqq'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
-          pnpm install --no-frozen-lockfile
-      # 编译
-      - id: build
-        run: |
-          pnpm build
-          echo "success=true" >> "$GITHUB_OUTPUT"
-      # 同步编译产物到 build 分支
-      - name: Sync build artifacts to build branch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -B build
-          git add -A
-          git add -f dist
-          git commit -m "build: 同步编译产物" --allow-empty
-          git push origin build --force
-  # 构建成功后, 在 Actions 运行页生成完整构建摘要 (Job Summary)
-  build-summary:
+          script: |
+            const { owner, repo } = context.repo
+            const section = `\n### 📦 npm 包\n- 版本：\`${process.env.RELEASE_TAG}\`\n- 安装命令：\`pnpm add karin-plugin-adapter-all -w\`\n- [查看 npm](https://www.npmjs.com/package/karin-plugin-adapter-all)\n`
+            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag: process.env.RELEASE_TAG })
+            await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, body: (release.body || '') + section })
+        if: ${{ steps.release.outputs.release_created }}
+  # 发布摘要
+  release-summary:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [release-please, sync-build]
-    if: always() && needs.sync-build.outputs.build_success == 'true'
+    needs: [release-please]
+    if: always()
     steps:
-      - name: 📊 生成完整构建摘要
+      - name: 📊 生成发布摘要
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
           {
-            echo "## ✅ 构建成功"
+            echo "## ✅ 发布流程完成"
             echo ""
-            echo "### 📦 发布分支的包"
-            echo "- [\`build\` 分支](https://github.com/${{ github.repository }}/tree/build)：构建产物（dist + resources/web）"
-            echo "- 安装命令：\`pnpm add github:${{ github.repository }}#build -w\`"
             echo "- [npm 包](https://www.npmjs.com/package/karin-plugin-adapter-all)：\`karin-plugin-adapter-all\`"
             echo ""
             echo "### 🏷️ 发行版"
             if [ -n "$RELEASE_TAG" ]; then
-              echo "- 版本：\`$RELEASE_TAG\`"
+              echo "- 本次发布版本：\`$RELEASE_TAG\`"
               echo "- [查看 Release](https://github.com/${{ github.repository }}/releases/tag/$RELEASE_TAG)"
             else
               LATEST=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name 2>/dev/null || echo "")
               if [ -n "$LATEST" ]; then
-                echo "- 最新 Release：\`$LATEST\`"
+                echo "- 本次无新发布，最新 Release：\`$LATEST\`"
                 echo "- [查看 Release](https://github.com/${{ github.repository }}/releases/tag/$LATEST)"
               else
                 echo "- 暂未发布 Release"
