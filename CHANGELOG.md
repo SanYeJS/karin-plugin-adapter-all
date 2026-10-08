@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.3.0...v1.4.0) (2026-10-08)
+
+
+### Features
+
+* 新增扫码登录功能并完善登录交互 ([c09debc](https://github.com/SanYeJS/karin-plugin-adapter-all/commit/c09debcab31ed1d0747e34fbe1a208c38ccffdb1))
+
 ## [1.3.0](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.2.2...v1.3.0) (2026-10-08)
 
 
