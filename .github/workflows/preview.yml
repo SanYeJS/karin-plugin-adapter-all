@@ -49,7 +49,7 @@ jobs:
             fi
             echo "install_cmd=pnpm add ${URL} -w" >> "$GITHUB_OUTPUT"
           else
-            echo "install_cmd=发布失败 (fork PR 不支持预览包), 请本地构建: pnpm build" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=发布失败 (需安装 pkg.pr.new App: https://github.com/apps/pkg-pr-new), 请查看 Actions 日志" >> "$GITHUB_OUTPUT"
           fi
 
       # PR 自动评论: 同一 PR 重复推送时 upsert 覆盖同一条评论, 不刷屏
