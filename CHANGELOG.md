@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.1.0...v1.1.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* 修复 icqq 源地址及 data URL 媒体处理问题 ([7cc113c](https://github.com/SanYeJS/karin-plugin-adapter-all/commit/7cc113c260b0a12b4463b30022319037b8f7836b))
+
 ## [1.1.0](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.0.0...v1.1.0) (2026-10-08)
 
 
