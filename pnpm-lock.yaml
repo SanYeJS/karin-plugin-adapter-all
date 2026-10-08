@@ -30,7 +30,7 @@ importers:
         specifier: 0.6.3
         version: 0.6.3(typescript@5.9.3)
       icqq:
-        specifier: npm:@icqqjs/icqq
+        specifier: npm:@icqqjs/icqq@^1.12.3
         version: '@icqqjs/icqq@1.12.3'
       karin-plugin-botweb:
         specifier: ^1.0.15
@@ -322,7 +322,7 @@ packages:
     engines: {node: '>=18.18'}
 
   '@icqqjs/icqq@1.12.3':
-    resolution: {integrity: sha512-xZA4cj7w3D8Q08ruUVvrOafVxgUmq237smb8rt7h/WIsBJTvJKzqw8wl4nIlpRvs3Kpkzy/sVODsnxTePmUGsQ==, tarball: https://npm.pkg.github.com/download/@icqqjs/icqq/1.12.3/e1da56ef7b5894bb6758bd0c3aba881a6bd78bc4}
+    resolution: {integrity: sha512-xZA4cj7w3D8Q08ruUVvrOafVxgUmq237smb8rt7h/WIsBJTvJKzqw8wl4nIlpRvs3Kpkzy/sVODsnxTePmUGsQ==, tarball: https://registry.npmjs.org/@icqqjs/icqq/-/icqq-1.12.3.tgz}
     engines: {node: '>= v14'}
 
   '@jridgewell/sourcemap-codec@1.6.0':

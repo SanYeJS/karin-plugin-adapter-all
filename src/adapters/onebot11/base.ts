@@ -41,6 +41,19 @@ const honors: Record<string, string> = {
 }
 
 /**
+ * Data URL 统一转 `base64://` scheme (兜底归一化转换结果)。
+ * node-karin 的 OneBot11 转换器对 data: URL 原样透传, 而各实现的 file 字段
+ * 仅支持 http(s):// file:// base64:// 三种格式, 故发送前将
+ * `data:image/png;base64,xxx` 重写为 `base64://xxx`
+ */
+export const normalizeDataUrl = (message: any[]): any[] => message.map((seg: any) => {
+  const file = seg?.data?.file
+  if (typeof file !== 'string' || !file.startsWith('data:')) return seg
+  const match = /^data:[^;,]*;base64,(.+)$/s.exec(file)
+  return match ? { ...seg, data: { ...seg.data, file: `base64://${match[1]}` } } : seg
+})
+
+/**
  * OneBot11 共享基类
  * 三端相同的部分: 连接元信息、事件白名单、QQ头像URL、OneBot11 标准 API
  * 差异集中在扩展API → 各实现单独文件
@@ -125,13 +138,13 @@ export abstract class OneBot11BaseBot<T = any> extends BaseBot<T> {
       type: 'node',
       data: n.subType === 'messageID'
         ? { id: n.messageId }
-        : { name: n.nickname, uin: String(n.userId), content: KarinConvertAdapter(n.message, this as never) },
+        : { name: n.nickname, uin: String(n.userId), content: normalizeDataUrl(KarinConvertAdapter(n.message, this as never)) },
     }))
   }
 
   // ===== 消息 =====
   async sendMsg (contact: Contact, elements: Elements[]) {
-    const message = KarinConvertAdapter(elements, this as never)
+    const message = normalizeDataUrl(KarinConvertAdapter(elements, this as never))
     const params: any = contact.scene === 'group'
       ? { group_id: +contact.peer }
       : { user_id: +(contact.scene === 'groupTemp' ? contact.subPeer : contact.peer) }

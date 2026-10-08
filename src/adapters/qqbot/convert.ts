@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+﻿import { readFile } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { Elements, karinToQQBot, segment, SendElement } from 'node-karin'
 /** QQBot content 纯文本中间段 (at 提及形如 <@!openid>/<@openid>) */
@@ -89,15 +89,33 @@ export async function resolveMedia (file?: string | Buffer): Promise<{ url: stri
     if (data) return { url: '', fileData: data }
     return undefined
   }
-  // 本地文件: file:// 前缀或绝对路径
-  const local = raw.startsWith('file://') ? raw.slice('file://'.length) : (isAbsolute(raw) && /^[\w\\/.:-]+\.[\w]{1,6}$/.test(raw) ? raw : '')
-  if (!local) return undefined
-  try {
-    const data = await readFile(local, 'base64')
-    return data ? { url: '', fileData: data } : undefined
-  } catch {
+  // Data URL: data:image/png;base64,xxx (插件/浏览器侧常用形态)
+  if (raw.startsWith('data:')) {
+    const idx = raw.indexOf(';base64,')
+    if (idx >= 0) {
+      const data = raw.slice(idx + ';base64,'.length)
+      if (data) return { url: '', fileData: data }
+    }
     return undefined
   }
+  // 本地文件: file:// 前缀或绝对路径 (兼容 file:///D:/x 形式与中文路径, Windows 盘符/UNC 均视为绝对路径)
+  let local = ''
+  if (raw.startsWith('file://')) {
+    local = decodeURIComponent(raw.slice('file://'.length))
+    // file:///D:/x → D:/x (剥掉 file:// 后残留的根斜杠)
+    if (/^\/[A-Za-z]:/.test(local)) local = local.slice(1)
+  } else if (isAbsolute(raw)) {
+    local = raw
+  }
+  if (local) {
+    try {
+      const data = await readFile(local, 'base64')
+      return data ? { url: '', fileData: data } : undefined
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
 }
 
 /** Karin 消息 → QQBot (text/at/reply/image/record/video/file/face/markdown/markdownTpl/button/keyboard) */
@@ -119,25 +137,25 @@ export async function KarinConvertAdapter (data: Array<SendElement>): Promise<Qq
         msgId = String(i.messageId)
         break
       case 'image': {
-        const m = await resolveMedia(i.file as string)
+        const m = await resolveMedia(((i as any).file || (i as any).url) as string)
         if (m) medias.push({ ...m, kind: 'image' })
         else content += '[图片]'
         break
       }
       case 'record': {
-        const m = await resolveMedia(i.file as string)
+        const m = await resolveMedia(((i as any).file || (i as any).url) as string)
         if (m) medias.push({ ...m, kind: 'record' })
         else content += '[语音]'
         break
       }
       case 'video': {
-        const m = await resolveMedia(i.file as string)
+        const m = await resolveMedia(((i as any).file || (i as any).url) as string)
         if (m) medias.push({ ...m, kind: 'video' })
         else content += '[视频]'
         break
       }
       case 'file': {
-        const m = await resolveMedia(i.file as string)
+        const m = await resolveMedia(((i as any).file || (i as any).url) as string)
         if (m) medias.push({ ...m, kind: 'file' })
         else content += '[文件]'
         break

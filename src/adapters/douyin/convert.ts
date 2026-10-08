@@ -314,7 +314,10 @@ function historySummary (content: string, messageType: number | null): string {
 
 /** karin 媒体源 → SDK 可识别输入：剥掉 base64:// 前缀（SDK 只认纯 base64/URL/本地路径） */
 function mediaSource (file: string): string {
-  return file.startsWith('base64://') ? file.slice(9) : file
+  if (file.startsWith('base64://')) return file.slice(9)
+  // Data URL: data:image/png;base64,xxx → 取 ;base64, 之后载荷作纯 base64
+  const match = /^data:[^;,]*;base64,(.+)$/s.exec(file)
+  return match ? match[1] : file
 }
 
 /** fake node 元素消息归一化（缺省类型按 text） */

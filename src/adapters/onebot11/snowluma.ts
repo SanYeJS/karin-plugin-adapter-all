@@ -27,7 +27,7 @@ import type {
 /** SDK版本 用作适配器初始版本 */
 import snowlumaPkg from '@snowluma/sdk/package.json' with { type: 'json' }
 import { createOneBot11Transport } from './transport'
-import { OneBot11BaseBot } from './base'
+import { OneBot11BaseBot, normalizeDataUrl } from './base'
 import type { BotConfig } from '../base'
 
 /**
@@ -135,14 +135,14 @@ export class SnowLumaBot extends OneBot11BaseBot<any> {
     return elements.map((n) => (
       n.subType === 'messageID'
         ? raw('node', { id: n.messageId })
-        : node(+n.userId, n.nickname, KarinConvertAdapter(n.message, this as never) as never)
+        : node(+n.userId, n.nickname, normalizeDataUrl(KarinConvertAdapter(n.message, this as never)) as never)
     ))
   }
 
   // ===== 消息 =====
   async sendMsg (contact: Contact, elements: Elements[]) {
     if (!this.sdkMode) return super.sendMsg(contact, elements)
-    const message = KarinConvertAdapter(elements, this as never)
+    const message = normalizeDataUrl(KarinConvertAdapter(elements, this as never))
     const id = +contact.peer
     const res = contact.scene === 'group'
       ? await this.raw.sendGroupMessage(id, message as never)
