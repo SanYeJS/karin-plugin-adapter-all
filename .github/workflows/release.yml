@@ -30,9 +30,11 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
         if: ${{ steps.release.outputs.release_created }}
-      # 安装依赖
+      # 安装依赖 (发布构建使用公开版 icqq 0.6.10, 本地开发才用 @icqqjs/icqq 高版本类型)
       - name: 安装依赖
-        run: pnpm install --no-frozen-lockfile
+        run: |
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.devDependencies.icqq='^0.6.10';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
+          pnpm install --no-frozen-lockfile
         if: ${{ steps.release.outputs.release_created }}
       # 编译
       - run: pnpm build
