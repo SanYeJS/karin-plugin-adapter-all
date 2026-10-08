@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.2.0...v1.2.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* 修复配置文件缺失导致启动失败的问题并升级icqq依赖 ([e95421c](https://github.com/SanYeJS/karin-plugin-adapter-all/commit/e95421c6c06ab3051ffced8a37a47de9699d0591))
+
 ## [1.2.0](https://github.com/SanYeJS/karin-plugin-adapter-all/compare/v1.1.1...v1.2.0) (2026-10-08)
 
 
