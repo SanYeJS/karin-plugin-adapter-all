@@ -1,4 +1,6 @@
 name: Preview Publish # PR 自动发布预览包到 pkg.pr.new 并评论安装命令
+# icqq 策略: CI 构建安装公开版 icqq@0.6.10 (安装依赖步骤临时改写 devDependencies),
+# 本地开发使用 devDependencies 中的 npm:@icqqjs/icqq 高版本 (完整 NT 类型)
 on:
   pull_request:
     types: [opened, reopened, synchronize]
